@@ -1,0 +1,21 @@
+{
+  "name": "TableAR",
+  "short_name": "TableAR",
+  "description": "AR-powered interactive restaurant menu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fef3c7",
+  "theme_color": "#d97706",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
