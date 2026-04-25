@@ -291,22 +291,6 @@ function ModelUploadField({ file, setFile, existingUrl, onUrlChange }) {
     </div>
   );
 }
-          </p>
-          <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 6, lineHeight: 1.5 }}>
-            GLB / GLTF format<br />
-            <span style={{ color: '#e11d48', fontWeight: 600 }}>Required</span> for "Try on Table" AR feature
-          </p>
-        </div>
-      )}
-
-      <input
-        ref={inputRef} type="file" accept=".glb,.gltf"
-        style={{ display: 'none' }}
-        onChange={e => handleFile(e.target.files[0])}
-      />
-    </div>
-  );
-}
 
 export default function DishForm() {
   const { id }   = useParams();
