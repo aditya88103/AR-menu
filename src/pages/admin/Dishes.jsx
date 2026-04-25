@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { fetchDishes, fetchCategories, deleteDish, toggleDishAvailability, deleteFile } from '../../utils/firestore';
+import { fetchDishes, fetchCategories, deleteDish, toggleDishAvailability, deleteFile, onDishesChange } from '../../utils/firestore';
 import toast from 'react-hot-toast';
 
 export default function DishesPage() {
@@ -14,13 +14,19 @@ export default function DishesPage() {
 
   const load = async () => {
     setLoading(true);
-    const [d, c] = await Promise.all([fetchDishes(), fetchCategories()]);
-    setDishes(d);
+    const c = await fetchCategories();
     setCategories(c);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // Set up real-time listener for dishes
+    const unsubscribe = onDishesChange((dishesList) => {
+      setDishes(dishesList);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleToggle = async (dish) => {
     setToggling(dish.id);

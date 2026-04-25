@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google/model-viewer": "^4.2.0",
+    "@supabase/supabase-js": "^2.45.0",
     "@tailwindcss/vite": "^4.2.2",
     "@vitejs/plugin-react": "^4.3.4",
     "qrcode.react": "^4.2.0",
