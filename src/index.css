@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/* Fallback styles in case Tailwind doesn't load */
+:root {
+  --color-red-50: #fff1f2;
+  --color-red-100: #ffe4e6;
+  --color-red-600: #e11d48;
+  --color-red-800: #9f1239;
+  --color-red-900: #7f1d1d;
+  --color-amber-100: #fef3c7;
+  --color-amber-500: #f59e0b;
+  --color-amber-700: #b45309;
+  --font-playfair: "Playfair Display", serif;
+  --font-inter: "Inter", sans-serif;
+}
+
 @theme {
   --color-red-50: #fff1f2;
   --color-red-100: #ffe4e6;
@@ -21,11 +35,28 @@
   padding: 0;
 }
 
+html, body, #root {
+  width: 100%;
+  height: 100%;
+}
+
 body {
   font-family: "Inter", sans-serif;
   background: #fef9f0;
   color: #1c1917;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Loading skeleton animation */
+@keyframes skeleton-loading {
+  0% { background-color: #f3f4f6; }
+  100% { background-color: #e5e7eb; }
+}
+
+.skeleton {
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 8px;
 }
 
 /* Scrollbar */

@@ -156,24 +156,34 @@ export function onCategoriesChange(callback) {
 
 // ── Dishes ────────────────────────────────────────────────────────────────────
 export async function fetchDishes() {
-  const { data, error } = await supabase.from('dishes').select('*');
-  if (error) {
-    console.error('Error fetching dishes:', error);
+  try {
+    const { data, error } = await supabase.from('dishes').select('*');
+    if (error) {
+      console.error('Error fetching dishes:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('Exception fetching dishes:', err);
     return [];
   }
-  return data || [];
 }
 
 export async function fetchAvailableDishes() {
-  const { data, error } = await supabase
-    .from('dishes')
-    .select('*')
-    .neq('isAvailable', false);
-  if (error) {
-    console.error('Error fetching available dishes:', error);
+  try {
+    const { data, error } = await supabase
+      .from('dishes')
+      .select('*')
+      .neq('isAvailable', false);
+    if (error) {
+      console.error('Error fetching available dishes:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('Exception fetching available dishes:', err);
     return [];
   }
-  return data || [];
 }
 
 export async function addDish(data) {

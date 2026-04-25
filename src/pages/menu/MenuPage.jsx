@@ -35,22 +35,45 @@ export default function MenuPage() {
 
   // ── Load data with real-time listeners ──────────────────────
   useEffect(() => {
-    // Initialize demo data on first load
-    initializeDemoData().catch(err => console.warn('Demo data init failed:', err));
+    let isMounted = true;
+    let timeoutId;
     
-    // Set up real-time listeners
+    // Initialize demo data on first load
+    initializeDemoData().catch(err => {
+      if (isMounted) {
+        console.warn('Demo data init failed:', err);
+      }
+    });
+    
+    // Set up real-time listeners with timeout fallback
     const unsubscribeDishes = onAvailableDishesChange((dishesList) => {
-      setDishes(dishesList);
-      setLoading(false);
+      if (isMounted) {
+        console.log('Dishes updated:', dishesList.length);
+        setDishes(dishesList);
+        setLoading(false);
+      }
     });
     
     const unsubscribeCategories = onCategoriesChange((cats) => {
-      setCategories(cats);
-      if (cats.length) setActive(prev => prev || cats[0].name);
-      setLoading(false);
+      if (isMounted) {
+        console.log('Categories updated:', cats.length);
+        setCategories(cats);
+        if (cats.length) setActive(prev => prev || cats[0].name);
+        setLoading(false);
+      }
     });
 
+    // Safety timeout - if data doesn't load in 5 seconds, stop loading
+    timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('Data loading timeout - showing whatever we have');
+        setLoading(false);
+      }
+    }, 5000);
+
     return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
       unsubscribeDishes();
       unsubscribeCategories();
     };
