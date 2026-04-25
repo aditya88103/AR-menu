@@ -8,8 +8,6 @@ const EMPTY_FORM = { name: '', price: '', description: '', category: '', isVeg: 
 
 /* ── Image upload with camera capture support ── */
 function ImageUploadField({ label, file, setFile, existingUrl, onUrlChange }) {
-  const galleryRef = useRef();
-  const cameraRef  = useRef();
   const [preview, setPreview] = useState(existingUrl || null);
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -21,27 +19,18 @@ function ImageUploadField({ label, file, setFile, existingUrl, onUrlChange }) {
     }
   }, [existingUrl]);
 
-  const handleFile = (f) => {
-    if (!f) return;
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
-    setShowUrlInput(false);
-    if (onUrlChange) onUrlChange(''); // Clear URL when file is selected
-  };
-
   const handleUrlSubmit = () => {
     if (urlInput.trim()) {
       const url = urlInput.trim();
       setPreview(url);
-      setFile(null); // Clear file if using URL
       setShowUrlInput(false);
       if (onUrlChange) onUrlChange(url); // Pass URL to parent
+      toast.success('Image URL added! ✅');
     }
   };
 
   const handleClear = () => {
     setPreview(null);
-    setFile(null);
     setUrlInput('');
     if (onUrlChange) onUrlChange('');
   };
@@ -83,98 +72,57 @@ function ImageUploadField({ label, file, setFile, existingUrl, onUrlChange }) {
       )}
 
       {/* URL Input */}
-      {showUrlInput && (
-        <div style={{ marginBottom: 10, display: 'flex', gap: 8 }}>
+      {showUrlInput ? (
+        <div style={{ marginBottom: 10 }}>
           <input
             type="url"
             placeholder="https://images.unsplash.com/photo-xxx?w=500"
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             className="admin-input"
-            style={{ flex: 1 }}
+            style={{ marginBottom: 8 }}
             onKeyPress={(e) => e.key === 'Enter' && handleUrlSubmit()}
+            autoFocus
           />
-          <button
-            type="button"
-            onClick={handleUrlSubmit}
-            style={{
-              padding: '10px 16px', borderRadius: 10,
-              background: '#16a34a', color: '#fff',
-              border: 'none', cursor: 'pointer', fontWeight: 600,
-            }}
-          >✓</button>
-          <button
-            type="button"
-            onClick={() => setShowUrlInput(false)}
-            style={{
-              padding: '10px 16px', borderRadius: 10,
-              background: '#ef4444', color: '#fff',
-              border: 'none', cursor: 'pointer', fontWeight: 600,
-            }}
-          >✕</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={handleUrlSubmit}
+              style={{
+                flex: 1, padding: '10px', borderRadius: 10,
+                background: '#16a34a', color: '#fff',
+                border: 'none', cursor: 'pointer', fontWeight: 600,
+              }}
+            >✓ Add Image</button>
+            <button
+              type="button"
+              onClick={() => setShowUrlInput(false)}
+              style={{
+                padding: '10px 16px', borderRadius: 10,
+                background: '#ef4444', color: '#fff',
+                border: 'none', cursor: 'pointer', fontWeight: 600,
+              }}
+            >Cancel</button>
+          </div>
+          <p style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: 8 }}>
+            💡 Tip: Use Unsplash.com for free food images
+          </p>
         </div>
-      )}
-
-      {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {/* Camera button — opens camera directly on mobile */}
-        <button
-          type="button"
-          onClick={() => cameraRef.current?.click()}
-          style={{
-            flex: 1, minWidth: 120, padding: '10px', borderRadius: 10,
-            background: 'linear-gradient(135deg,#e11d48,#9f1239)',
-            color: '#fff', border: 'none', cursor: 'pointer',
-            fontWeight: 600, fontSize: '0.85rem',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          }}
-        >
-          📷 Take Photo
-        </button>
-
-        {/* Gallery button */}
-        <button
-          type="button"
-          onClick={() => galleryRef.current?.click()}
-          style={{
-            flex: 1, minWidth: 120, padding: '10px', borderRadius: 10,
-            background: '#f3f4f6', color: '#374151',
-            border: '1.5px solid #e5e7eb', cursor: 'pointer',
-            fontWeight: 600, fontSize: '0.85rem',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          }}
-        >
-          🖼️ Upload File
-        </button>
-
-        {/* URL button */}
+      ) : (
         <button
           type="button"
           onClick={() => setShowUrlInput(true)}
           style={{
-            flex: 1, minWidth: 120, padding: '10px', borderRadius: 10,
-            background: '#eff6ff', color: '#1e40af',
-            border: '1.5px solid #bfdbfe', cursor: 'pointer',
-            fontWeight: 600, fontSize: '0.85rem',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            width: '100%', padding: '12px', borderRadius: 10,
+            background: 'linear-gradient(135deg,#e11d48,#9f1239)',
+            color: '#fff', border: 'none', cursor: 'pointer',
+            fontWeight: 600, fontSize: '0.9rem',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}
         >
-          🔗 Use URL
+          🔗 Add Image URL
         </button>
-      </div>
-
-      {/* Hidden inputs */}
-      <input
-        ref={cameraRef} type="file" accept="image/*"
-        capture="environment"   /* opens rear camera directly on mobile */
-        style={{ display: 'none' }}
-        onChange={e => handleFile(e.target.files[0])}
-      />
-      <input
-        ref={galleryRef} type="file" accept="image/*"
-        style={{ display: 'none' }}
-        onChange={e => handleFile(e.target.files[0])}
-      />
+      )}
     </div>
   );
 }
@@ -510,7 +458,7 @@ export default function DishForm() {
               Dish Photo
             </h2>
             <p style={{ fontSize: '0.78rem', color: '#9ca3af', marginBottom: 14 }}>
-              📱 On mobile: tap "Take Photo" to use your phone camera directly at the restaurant
+              🔗 Add image URL from Unsplash or any image hosting service
             </p>
             <ImageUploadField
               label=""
