@@ -31,10 +31,15 @@ export default function DishesPage() {
   const handleToggle = async (dish) => {
     setToggling(dish.id);
     try {
-      await toggleDishAvailability(dish.id, !dish.isAvailable);
-      // Don't update state locally - let the real-time listener handle it
-      // This ensures all browsers stay in sync
-      toast.success(dish.isAvailable ? `"${dish.name}" hidden from menu` : `"${dish.name}" now visible`);
+      // Handle both column name cases
+      const currentAvailability = dish.isAvailable !== undefined ? dish.isAvailable : dish.isavailable;
+      const newAvailability = !currentAvailability;
+      
+      console.log('🔄 Toggling dish:', dish.name, 'from', currentAvailability, 'to', newAvailability);
+      
+      await toggleDishAvailability(dish.id, newAvailability);
+      
+      toast.success(newAvailability ? `"${dish.name}" now visible on menu` : `"${dish.name}" hidden from menu`);
     } catch (err) {
       console.error('Toggle error:', err);
       toast.error('Failed to update availability');
@@ -79,6 +84,17 @@ export default function DishesPage() {
   const uncategorized = filtered.filter(d => !knownCats.has(d.category));
   if (uncategorized.length) grouped.push({ name: 'Uncategorized', dishes: uncategorized });
 
+  // Calculate stats (handle both column name cases)
+  const totalDishes = dishes.length;
+  const onMenuCount = dishes.filter(d => {
+    const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
+    return isAvail !== false;
+  }).length;
+  const hiddenCount = dishes.filter(d => {
+    const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
+    return isAvail === false;
+  }).length;
+
   return (
     <AdminLayout title="Dishes">
 
@@ -106,10 +122,10 @@ export default function DishesPage() {
       {/* ── Stats ── */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         {[
-          { label: 'Total Dishes',    val: dishes.length,                                  icon: '🍽️', bg: '#fff',     color: '#1c1917' },
-          { label: 'On Menu',         val: dishes.filter(d => d.isAvailable !== false).length, icon: '✅', bg: '#f0fdf4', color: '#16a34a' },
-          { label: 'Hidden',          val: dishes.filter(d => d.isAvailable === false).length,  icon: '🚫', bg: '#fff1f2', color: '#e11d48' },
-          { label: 'Categories',      val: categories.length,                              icon: '📂', bg: '#eff6ff', color: '#3b82f6' },
+          { label: 'Total Dishes',    val: totalDishes,     icon: '🍽️', bg: '#fff',     color: '#1c1917' },
+          { label: 'On Menu',         val: onMenuCount,     icon: '✅', bg: '#f0fdf4', color: '#16a34a' },
+          { label: 'Hidden',          val: hiddenCount,     icon: '🚫', bg: '#fff1f2', color: '#e11d48' },
+          { label: 'Categories',      val: categories.length, icon: '📂', bg: '#eff6ff', color: '#3b82f6' },
         ].map(s => (
           <div key={s.label} style={{
             background: s.bg, borderRadius: 12, padding: '12px 20px',
@@ -141,8 +157,15 @@ export default function DishesPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
           {grouped.map(({ name: cat, dishes: catDishes }) => {
             const isOpen = !collapsed[cat];
-            const available   = catDishes.filter(d => d.isAvailable !== false).length;
-            const hidden      = catDishes.filter(d => d.isAvailable === false).length;
+            // Handle both column name cases
+            const available = catDishes.filter(d => {
+              const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
+              return isAvail !== false;
+            }).length;
+            const hidden = catDishes.filter(d => {
+              const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
+              return isAvail === false;
+            }).length;
 
             return (
               <div key={cat} style={{ background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
@@ -201,32 +224,37 @@ export default function DishesPage() {
 }
 
 function DishCard({ dish, onToggle, onDelete, toggling }) {
-  const isAvail    = dish.isAvailable !== false;
+  // Handle both column name cases
+  const isAvail = dish.isAvailable !== undefined ? dish.isAvailable : dish.isavailable;
   const isToggling = toggling === dish.id;
+  
+  // Handle both column name cases for image
+  const imageURL = dish.imageURL || dish.imageurl || '';
+  const modelURL = dish.modelURL || dish.modelurl || '';
 
   return (
     <div style={{
       borderRadius: 16,
-      border: `2px solid ${isAvail ? '#dcfce7' : '#fecdd3'}`,
-      overflow: 'hidden', background: isAvail ? '#fff' : '#fffbfb',
+      border: `2px solid ${isAvail !== false ? '#dcfce7' : '#fecdd3'}`,
+      overflow: 'hidden', background: isAvail !== false ? '#fff' : '#fffbfb',
       transition: 'border-color 0.2s, box-shadow 0.2s',
-      opacity: isAvail ? 1 : 0.85,
+      opacity: isAvail !== false ? 1 : 0.85,
       display: 'flex', flexDirection: 'row',
       padding: 10, gap: 12, alignItems: 'stretch'
     }}>
       {/* Left side: Image */}
       <div style={{ width: 90, borderRadius: 10, overflow: 'hidden', position: 'relative', background: '#f9fafb', flexShrink: 0 }}>
-        {dish.imageURL
-          ? <img src={dish.imageURL} alt={dish.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {imageURL
+          ? <img src={imageURL} alt={dish.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 28, background: '#fecdd3' }}>🍽️</div>
         }
         <div style={{
           position: 'absolute', top: 4, left: 4, right: 4, textAlign: 'center',
-          background: isAvail ? 'rgba(22,163,74,0.9)' : 'rgba(225,29,72,0.9)', backdropFilter: 'blur(4px)',
+          background: isAvail !== false ? 'rgba(22,163,74,0.9)' : 'rgba(225,29,72,0.9)', backdropFilter: 'blur(4px)',
           color: '#fff', fontSize: '0.55rem', fontWeight: 800,
           padding: '3px 0', borderRadius: 6,
         }}>
-          {isAvail ? '✅ ON' : '🚫 OFF'}
+          {isAvail !== false ? '✅ ON' : '🚫 OFF'}
         </div>
       </div>
 
@@ -249,14 +277,14 @@ function DishCard({ dish, onToggle, onDelete, toggling }) {
             disabled={isToggling}
             style={{
               width: '100%', padding: '6px',
-              background: isAvail ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#16a34a,#15803d)',
+              background: isAvail !== false ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#16a34a,#15803d)',
               color: '#fff', border: 'none', borderRadius: 8,
               fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
               opacity: isToggling ? 0.7 : 1, transition: 'all 0.2s',
             }}
           >
-            {isToggling ? '⟳ Updating' : isAvail ? '🚫 Hide' : '✅ Show'}
+            {isToggling ? '⟳ Updating' : isAvail !== false ? '🚫 Hide' : '✅ Show'}
           </button>
 
           <div style={{ display: 'flex', gap: 6 }}>

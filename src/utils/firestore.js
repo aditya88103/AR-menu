@@ -54,29 +54,32 @@ export async function initializeDemoData() {
 
 // ── Real-time listeners ───────────────────────────────────────────────────────
 export function onDishesChange(callback) {
+  console.log('🔄 Setting up all dishes listener...');
+  
   const channel = supabase
     .channel('dishes-changes')
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'dishes' },
       async () => {
-        // Re-fetch all dishes when any change happens
+        console.log('🔔 All dishes changed, refetching...');
         const { data, error } = await supabase.from('dishes').select('*');
         if (!error && data) {
+          console.log('✅ All dishes fetched:', data.length);
           callback(data);
         }
       }
     )
     .subscribe();
 
-  // Also fetch initial data
+  // Fetch initial data
   supabase.from('dishes').select('*').then(({ data, error }) => {
     if (!error && data) {
+      console.log('✅ Initial all dishes loaded:', data.length);
       callback(data);
     }
   });
 
-  // Return unsubscribe function
   return () => {
     supabase.removeChannel(channel);
   };
@@ -92,14 +95,19 @@ export function onAvailableDishesChange(callback) {
       { event: '*', schema: 'public', table: 'dishes' },
       async () => {
         console.log('🔔 Dishes changed, refetching...');
-        // Re-fetch available dishes when any change happens
+        // Fetch all dishes and filter in JavaScript to handle both column name cases
         const { data, error } = await supabase
           .from('dishes')
-          .select('*')
-          .eq('isavailable', true);  // lowercase column name
+          .select('*');
+        
         if (!error && data) {
-          console.log('✅ Dishes fetched from Supabase:', data.length, data);
-          callback(data);
+          // Filter available dishes (handle both isAvailable and isavailable)
+          const available = data.filter(d => {
+            const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
+            return isAvail !== false;
+          });
+          console.log('✅ Available dishes:', available.length, available);
+          callback(available);
         } else if (error) {
           console.error('❌ Error fetching dishes:', error);
         }
@@ -107,32 +115,25 @@ export function onAvailableDishesChange(callback) {
     )
     .subscribe();
 
-  // Also fetch initial data
+  // Fetch initial data
   console.log('📥 Fetching initial dishes...');
   supabase
     .from('dishes')
     .select('*')
-    .eq('isavailable', true)  // lowercase column name
     .then(({ data, error }) => {
       if (!error && data) {
-        console.log('✅ Initial dishes loaded:', data.length, data);
-        callback(data);
+        // Filter available dishes (handle both column name cases)
+        const available = data.filter(d => {
+          const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
+          return isAvail !== false;
+        });
+        console.log('✅ Initial dishes loaded:', available.length, available);
+        callback(available);
       } else if (error) {
         console.error('❌ Error loading initial dishes:', error);
-        // Try without filter as fallback
-        console.log('🔄 Trying to fetch all dishes without filter...');
-        supabase.from('dishes').select('*').then(({ data: allData, error: allError }) => {
-          if (!allError && allData) {
-            console.log('✅ All dishes (no filter):', allData.length, allData);
-            callback(allData);
-          } else {
-            console.error('❌ Failed to fetch any dishes:', allError);
-          }
-        });
       }
     });
 
-  // Return unsubscribe function
   return () => {
     supabase.removeChannel(channel);
   };
@@ -243,6 +244,8 @@ export async function addDish(data) {
 }
 
 export async function updateDish(id, data) {
+  console.log('🔄 Updating dish:', id, data);
+  
   // Convert camelCase to lowercase for database
   const dbData = {};
   if (data.name !== undefined) dbData.name = data.name;
@@ -255,19 +258,24 @@ export async function updateDish(id, data) {
   if (data.imageURL !== undefined) dbData.imageurl = data.imageURL;
   if (data.modelURL !== undefined) dbData.modelurl = data.modelURL;
 
+  console.log('📤 Sending to database:', dbData);
+
   const { error } = await supabase
     .from('dishes')
     .update(dbData)
     .eq('id', id);
 
   if (error) {
-    console.error('Error updating dish:', error);
+    console.error('❌ Error updating dish:', error);
     throw error;
   }
+  
+  console.log('✅ Dish updated successfully');
 }
 
 export async function toggleDishAvailability(id, isAvailable) {
-  await updateDish(id, { isavailable: isAvailable });  // lowercase
+  console.log('🔄 Toggling dish availability:', id, isAvailable);
+  await updateDish(id, { isavailable: isAvailable });
 }
 
 export async function deleteDish(id) {
