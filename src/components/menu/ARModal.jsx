@@ -240,7 +240,7 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
             {/* ── THE launch button ──
                 model-viewer is rendered hidden so its `ar-button` slot
                 works — that slot IS the camera launcher (user-gesture safe). */}
-            <div style={{ width: '100%', position: 'relative' }}>
+            <div style={{ width: '100%', position: 'relative', marginTop: 20 }}>
               {/* Hidden model-viewer */}
               <model-viewer
                 ref={mvRef}
@@ -254,13 +254,9 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
                 {/* Slot button = actual AR trigger via model-viewer internals */}
                 <button
                   slot="ar-button"
+                  id="ar-launch-button"
                   style={{
-                    position: 'fixed',
-                    bottom: 24,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    zIndex: 10001,
-                    width: 'min(calc(100vw - 48px), 340px)',
+                    width: '100%',
                     padding: '17px 0',
                     borderRadius: 999,
                     background: 'linear-gradient(135deg,#e11d48,#be123c)',
@@ -271,6 +267,8 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
                     boxShadow: '0 8px 32px rgba(225,29,72,0.55)',
                     animation: 'arBtnPulse 2s ease-in-out infinite',
                     whiteSpace: 'nowrap',
+                    touchAction: 'manipulation',
+                    WebkitTapHighlightColor: 'transparent',
                   }}
                 >
                   <span style={{ fontSize: 22 }}>📷</span>
@@ -298,8 +296,8 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
               )}
             </div>
 
-            {/* Bottom padding for fixed button */}
-            <div style={{ height: 80, flexShrink: 0 }} />
+            {/* Bottom padding */}
+            <div style={{ height: 40, flexShrink: 0 }} />
           </div>
         )}
 
