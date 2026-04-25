@@ -93,9 +93,12 @@ export function onAvailableDishesChange(callback) {
         const { data, error } = await supabase
           .from('dishes')
           .select('*')
-          .neq('isAvailable', false);
+          .eq('isavailable', true);  // lowercase column name
         if (!error && data) {
+          console.log('✅ Dishes fetched from Supabase:', data.length);
           callback(data);
+        } else if (error) {
+          console.error('❌ Error fetching dishes:', error);
         }
       }
     )
@@ -105,10 +108,13 @@ export function onAvailableDishesChange(callback) {
   supabase
     .from('dishes')
     .select('*')
-    .neq('isAvailable', false)
+    .eq('isavailable', true)  // lowercase column name
     .then(({ data, error }) => {
       if (!error && data) {
+        console.log('✅ Initial dishes loaded:', data.length);
         callback(data);
+      } else if (error) {
+        console.error('❌ Error loading initial dishes:', error);
       }
     });
 
@@ -131,7 +137,10 @@ export function onCategoriesChange(callback) {
           .select('*')
           .order('order', { ascending: true });
         if (!error && data) {
+          console.log('✅ Categories fetched from Supabase:', data.length);
           callback(data);
+        } else if (error) {
+          console.error('❌ Error fetching categories:', error);
         }
       }
     )
@@ -144,7 +153,10 @@ export function onCategoriesChange(callback) {
     .order('order', { ascending: true })
     .then(({ data, error }) => {
       if (!error && data) {
+        console.log('✅ Initial categories loaded:', data.length);
         callback(data);
+      } else if (error) {
+        console.error('❌ Error loading initial categories:', error);
       }
     });
 
@@ -174,11 +186,12 @@ export async function fetchAvailableDishes() {
     const { data, error } = await supabase
       .from('dishes')
       .select('*')
-      .neq('isAvailable', false);
+      .eq('isavailable', true);  // lowercase column name
     if (error) {
       console.error('Error fetching available dishes:', error);
       return [];
     }
+    console.log('✅ Fetched available dishes:', data?.length || 0);
     return data || [];
   } catch (err) {
     console.error('Exception fetching available dishes:', err);
@@ -192,10 +205,10 @@ export async function addDish(data) {
     description: data.description,
     category: data.category,
     price: data.price,
-    isVeg: data.isVeg,
-    isAvailable: true,
-    imageURL: data.imageURL,
-    modelURL: data.modelURL,
+    isveg: data.isVeg,  // lowercase
+    isavailable: true,  // lowercase
+    imageurl: data.imageURL,  // lowercase
+    modelurl: data.modelURL,  // lowercase
   };
 
   const { data: result, error } = await supabase
@@ -224,7 +237,7 @@ export async function updateDish(id, data) {
 }
 
 export async function toggleDishAvailability(id, isAvailable) {
-  await updateDish(id, { isAvailable });
+  await updateDish(id, { isavailable: isAvailable });  // lowercase
 }
 
 export async function deleteDish(id) {

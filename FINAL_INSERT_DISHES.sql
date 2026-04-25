@@ -1,31 +1,13 @@
--- Direct Supabase Seed Script
--- Copy-paste this entire script into Supabase SQL Editor and run it
--- This will seed all 8 categories and 40 dishes instantly
+-- This will work! Categories ko skip karke sirf dishes insert karenge
 
--- Clear existing data (optional, comment out if you want to keep existing data)
--- DELETE FROM dishes;
--- DELETE FROM categories;
-
--- Insert Categories
-INSERT INTO categories (id, name, "order") VALUES
-('burgers', 'Burgers & Wraps', 0),
-('starters', 'Starters', 1),
-('mains', 'Main Course', 2),
-('biryani', 'Biryani & Rice', 3),
-('chinese', 'Chinese Corner', 4),
-('breads', 'Breads', 5),
-('desserts', 'Desserts', 6),
-('drinks', 'Drinks & Shakes', 7)
-ON CONFLICT (id) DO NOTHING;
-
--- Insert Dishes (40 total)
+-- Insert all 40 dishes with full details
 INSERT INTO dishes (id, name, description, category, price, isVeg, isAvailable, imageURL, modelURL) VALUES
 
 -- Burgers & Wraps (6)
 ('b1', 'Biggies Classic Burger', 'Double-patty smash burger with lettuce, tomato, pickles, cheddar cheese and secret Biggies sauce.', 'Burgers & Wraps', 129, false, true, 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&q=80&fit=crop', '/models/burger.glb'),
 ('b2', 'Spicy Chicken Burger', 'Crispy fried chicken thigh with peri-peri sauce, coleslaw and jalapeños in a toasted brioche bun.', 'Burgers & Wraps', 149, false, true, 'https://images.unsplash.com/photo-1606755962773-d324e0a13086?w=500&q=80&fit=crop', '/models/burger.glb'),
 ('b3', 'Paneer Tikka Burger', 'Grilled tandoori paneer tikka patty with mint chutney, sliced onions and tomatoes.', 'Burgers & Wraps', 119, true, true, 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=500&q=80&fit=crop', '/models/burger.glb'),
-('b4', 'Veg Aloo Tikki Burger', 'Crispy spiced potato tikki with tamarind chutney, green chutney and fresh salad.', 'Burgers & Wraps', 89, true, true, 'https://images.unsplash.com/photo-1585238342024-78d387f4a707?w=500&q=80&fit=crop', '/models/burger.glb'),
+('b4', 'Veg Aloo Tikki Burger', 'Crispy spiced potato tikki with tamarind chutney, green chutney and fresh salad.', 'Burgers & Wraps', 89, true, true, 'https://images.unsplash.com/photo-1585238342024-78d387f4a4f8?w=500&q=80&fit=crop', '/models/burger.glb'),
 ('b5', 'Chicken Kathi Roll', 'Flaky paratha stuffed with spiced chicken tikka strips, onions and mint chutney.', 'Burgers & Wraps', 99, false, true, 'https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=500&q=80&fit=crop', '/models/wrap.glb'),
 ('b6', 'Paneer Frankie', 'Soft roomali roti wrapped with spiced paneer bhurji, capsicum and schezwan sauce.', 'Burgers & Wraps', 89, true, true, 'https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?w=500&q=80&fit=crop', '/models/wrap.glb'),
 
@@ -85,8 +67,8 @@ ON CONFLICT (id) DO UPDATE SET
   isVeg = EXCLUDED.isVeg,
   isAvailable = EXCLUDED.isAvailable,
   imageURL = EXCLUDED.imageURL,
-  modelURL = EXCLUDED.modelURL;
+  modelURL = EXCLUDED.modelURL,
+  updatedAt = now();
 
--- Verify data was seeded
-SELECT COUNT(*) as total_dishes FROM dishes;
-SELECT COUNT(*) as total_categories FROM categories;
+-- Show results
+SELECT 'Total Dishes Added/Updated:' as info, COUNT(*) as count FROM dishes;
