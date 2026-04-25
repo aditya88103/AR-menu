@@ -225,8 +225,8 @@ export async function addDish(data) {
     price: data.price,
     isveg: data.isVeg,  // lowercase
     isavailable: true,  // lowercase
-    imageurl: data.imageURL,  // lowercase
-    modelurl: data.modelURL,  // lowercase
+    imageurl: data.imageURL || '',  // lowercase, default empty
+    modelurl: data.modelURL || '',  // lowercase, default empty
   };
 
   const { data: result, error } = await supabase
@@ -243,9 +243,21 @@ export async function addDish(data) {
 }
 
 export async function updateDish(id, data) {
+  // Convert camelCase to lowercase for database
+  const dbData = {};
+  if (data.name !== undefined) dbData.name = data.name;
+  if (data.description !== undefined) dbData.description = data.description;
+  if (data.category !== undefined) dbData.category = data.category;
+  if (data.price !== undefined) dbData.price = data.price;
+  if (data.isVeg !== undefined) dbData.isveg = data.isVeg;
+  if (data.isAvailable !== undefined) dbData.isavailable = data.isAvailable;
+  if (data.isavailable !== undefined) dbData.isavailable = data.isavailable;
+  if (data.imageURL !== undefined) dbData.imageurl = data.imageURL;
+  if (data.modelURL !== undefined) dbData.modelurl = data.modelURL;
+
   const { error } = await supabase
     .from('dishes')
-    .update(data)
+    .update(dbData)
     .eq('id', id);
 
   if (error) {
@@ -324,21 +336,27 @@ export async function deleteCategory(id) {
 
 // ── File uploads ──────────────────────────────────────────────────────────────
 export async function uploadFile(file, path) {
-  const fileName = `${Date.now()}_${file.name}`;
-  const filePath = `${path}/${fileName}`;
+  try {
+    const fileName = `${Date.now()}_${file.name}`;
+    const filePath = `${path}/${fileName}`;
 
-  const { error } = await supabase.storage
-    .from('menu-files')
-    .upload(filePath, file);
+    const { error } = await supabase.storage
+      .from('menu-files')
+      .upload(filePath, file);
 
-  if (error) {
-    console.error('Error uploading file:', error);
-    throw error;
+    if (error) {
+      console.error('Error uploading file:', error);
+      // Return empty string instead of throwing - file upload is optional
+      return '';
+    }
+
+    // Get public URL
+    const { data } = supabase.storage.from('menu-files').getPublicUrl(filePath);
+    return data?.publicUrl || '';
+  } catch (err) {
+    console.warn('File upload failed, continuing without file:', err);
+    return '';
   }
-
-  // Get public URL
-  const { data } = supabase.storage.from('menu-files').getPublicUrl(filePath);
-  return data?.publicUrl;
 }
 
 export async function deleteFile(fileURL) {

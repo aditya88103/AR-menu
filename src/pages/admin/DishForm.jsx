@@ -271,8 +271,15 @@ export default function DishForm() {
       let imageURL = existingData.imageURL || '';
       let modelURL = existingData.modelURL || '';
 
-      if (imageFile) imageURL = await uploadFile(imageFile, 'dishes/images');
-      if (modelFile) modelURL = await uploadFile(modelFile, 'dishes/models');
+      // Upload files if provided (optional)
+      if (imageFile) {
+        const uploaded = await uploadFile(imageFile, 'dishes/images');
+        if (uploaded) imageURL = uploaded;
+      }
+      if (modelFile) {
+        const uploaded = await uploadFile(modelFile, 'dishes/models');
+        if (uploaded) modelURL = uploaded;
+      }
 
       const data = { ...form, price: parseFloat(form.price), imageURL, modelURL };
 
@@ -285,7 +292,8 @@ export default function DishForm() {
       }
       navigate('/admin/dishes');
     } catch (err) {
-      toast.error(err.message || 'Failed to save');
+      console.error('Save error:', err);
+      toast.error(err.message || 'Failed to save dish');
     } finally {
       setSaving(false);
     }
