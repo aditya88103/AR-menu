@@ -7,26 +7,43 @@ import toast from 'react-hot-toast';
 const EMPTY_FORM = { name: '', price: '', description: '', category: '', isVeg: null }; // isVeg null = not yet selected
 
 /* ── Image upload with camera capture support ── */
-function ImageUploadField({ label, file, setFile, existingUrl }) {
+function ImageUploadField({ label, file, setFile, existingUrl, onUrlChange }) {
   const galleryRef = useRef();
   const cameraRef  = useRef();
   const [preview, setPreview] = useState(existingUrl || null);
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
 
+  // Update preview when existingUrl changes
+  useEffect(() => {
+    if (existingUrl && !preview) {
+      setPreview(existingUrl);
+    }
+  }, [existingUrl]);
+
   const handleFile = (f) => {
     if (!f) return;
     setFile(f);
     setPreview(URL.createObjectURL(f));
     setShowUrlInput(false);
+    if (onUrlChange) onUrlChange(''); // Clear URL when file is selected
   };
 
   const handleUrlSubmit = () => {
     if (urlInput.trim()) {
-      setPreview(urlInput.trim());
+      const url = urlInput.trim();
+      setPreview(url);
       setFile(null); // Clear file if using URL
       setShowUrlInput(false);
+      if (onUrlChange) onUrlChange(url); // Pass URL to parent
     }
+  };
+
+  const handleClear = () => {
+    setPreview(null);
+    setFile(null);
+    setUrlInput('');
+    if (onUrlChange) onUrlChange('');
   };
 
   return (
@@ -40,13 +57,21 @@ function ImageUploadField({ label, file, setFile, existingUrl }) {
       {/* Preview */}
       {preview && (
         <div style={{ position: 'relative', marginBottom: 10 }}>
-          <img src={preview} alt="preview" style={{
-            width: '100%', maxHeight: 200, objectFit: 'cover',
-            borderRadius: 12, border: '2px solid #fecdd3',
-          }} />
+          <img 
+            src={preview} 
+            alt="preview" 
+            onError={(e) => {
+              console.error('Image load error:', preview);
+              e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23fecdd3" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="48"%3E🍽️%3C/text%3E%3C/svg%3E';
+            }}
+            style={{
+              width: '100%', maxHeight: 200, objectFit: 'cover',
+              borderRadius: 12, border: '2px solid #fecdd3',
+            }} 
+          />
           <button
             type="button"
-            onClick={() => { setPreview(null); setFile(null); setUrlInput(''); }}
+            onClick={handleClear}
             style={{
               position: 'absolute', top: 8, right: 8,
               background: 'rgba(0,0,0,0.6)', color: '#fff',
@@ -62,11 +87,12 @@ function ImageUploadField({ label, file, setFile, existingUrl }) {
         <div style={{ marginBottom: 10, display: 'flex', gap: 8 }}>
           <input
             type="url"
-            placeholder="https://example.com/image.jpg"
+            placeholder="https://images.unsplash.com/photo-xxx?w=500"
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             className="admin-input"
             style={{ flex: 1 }}
+            onKeyPress={(e) => e.key === 'Enter' && handleUrlSubmit()}
           />
           <button
             type="button"
@@ -299,6 +325,7 @@ export default function DishForm() {
   const [form, setForm]             = useState(EMPTY_FORM);
   const [categories, setCategories] = useState([]);
   const [imageFile, setImageFile]   = useState(null);
+  const [imageUrl, setImageUrl]     = useState('');
   const [modelFile, setModelFile]   = useState(null);
   const [existingData, setExisting] = useState({});
   const [saving, setSaving]         = useState(false);
@@ -326,6 +353,7 @@ export default function DishForm() {
             imageURL, 
             modelURL 
           });
+          setImageUrl(imageURL); // Set initial image URL
           
           console.log('📝 Loaded dish for editing:', { name: dish.name, imageURL, modelURL });
         }
@@ -345,10 +373,10 @@ export default function DishForm() {
     }
     setSaving(true);
     try {
-      let imageURL = existingData.imageURL || '';
+      let imageURL = imageUrl || existingData.imageURL || '';
       let modelURL = existingData.modelURL || '';
 
-      console.log('💾 Saving dish...', { imageFile: !!imageFile, modelFile: !!modelFile });
+      console.log('💾 Saving dish...', { imageFile: !!imageFile, imageUrl, modelFile: !!modelFile });
 
       // Upload files if provided (optional)
       if (imageFile) {
@@ -489,6 +517,7 @@ export default function DishForm() {
               file={imageFile}
               setFile={setImageFile}
               existingUrl={existingData.imageURL}
+              onUrlChange={setImageUrl}
             />
           </div>
 
