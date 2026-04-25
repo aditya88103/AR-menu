@@ -38,6 +38,10 @@ export const DEMO_CATEGORIES = [
   { id: 'breads',    name: 'Breads',             order: 5 },
   { id: 'desserts',  name: 'Desserts',           order: 6 },
   { id: 'drinks',    name: 'Drinks & Shakes',    order: 7 },
+  { id: 'combos',    name: 'Special Combos',     order: 8 },
+  { id: 'healthy',   name: 'Healthy Options',    order: 9 },
+  { id: 'street',    name: 'Indian Street Food', order: 10 },
+  { id: 'south',     name: 'South Indian',       order: 11 },
 ];
 
 export const DEMO_DISHES = [
@@ -290,5 +294,301 @@ export const DEMO_DISHES = [
     description: 'Strong Indian tea brewed with ginger, cardamom and whole spices. Comfort in a cup.',
     imageURL: 'https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?w=500&q=80&fit=crop',
     modelURL: MDL.chai, isAvailable: true,
+  },
+
+  // ══ EXPANDED MENU - ADDITIONAL 40+ DISHES ════════════════
+  
+  // Additional Burgers & Wraps
+  {
+    id: 'b7', name: 'Double Cheese Chicken Burger', category: 'Burgers & Wraps', price: 169, isVeg: false,
+    description: 'Crispy fried chicken with cheddar, mozzarella, bacon strips and garlic mayo.',
+    imageURL: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&q=80&fit=crop',
+    modelURL: MDL.burger, isAvailable: true,
+  },
+  {
+    id: 'b8', name: 'Tandoori Paneer Wrap', category: 'Burgers & Wraps', price: 99, isVeg: true,
+    description: 'Grilled tandoori paneer, crispy lettuce, tomato and fresh mint in a whole wheat wrap.',
+    imageURL: 'https://images.unsplash.com/photo-1585238342024-78d387f4a707?w=500&q=80&fit=crop',
+    modelURL: MDL.wrap, isAvailable: true,
+  },
+  {
+    id: 'b9', name: 'Mushroom Swiss Burger', category: 'Burgers & Wraps', price: 139, isVeg: true,
+    description: 'Sautéed mushrooms, Swiss cheese, caramelized onions and truffle mayo on crispy toast.',
+    imageURL: 'https://images.unsplash.com/photo-1550547660-d9450f859470?w=500&q=80&fit=crop',
+    modelURL: MDL.burger, isAvailable: true,
+  },
+
+  // Additional Starters
+  {
+    id: 's6', name: 'Fish Amritsari', category: 'Starters', price: 269, isVeg: false,
+    description: 'Crispy batter-fried fish pieces served with sweet and spicy tamarind chutney.',
+    imageURL: 'https://images.unsplash.com/photo-1580959375944-abd7e991f971?w=500&q=80&fit=crop',
+    modelURL: MDL.tandoori, isAvailable: true,
+  },
+  {
+    id: 's7', name: 'Hara Bhara Kebab', category: 'Starters', price: 149, isVeg: true,
+    description: 'Green herb and spinach kebabs with paneer, shallow-fried and served with mint mayo.',
+    imageURL: 'https://images.unsplash.com/photo-1585238341710-4b00f1b63a90?w=500&q=80&fit=crop',
+    modelURL: MDL.tandoori, isAvailable: true,
+  },
+  {
+    id: 's8', name: 'Corn & Cheese Balls', category: 'Starters', price: 129, isVeg: true,
+    description: 'Golden crispy corn balls loaded with melted cheese and spices. Perfect with mayo.',
+    imageURL: 'https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=500&q=80&fit=crop',
+    modelURL: MDL.tandoori, isAvailable: true,
+  },
+  {
+    id: 's9', name: 'Tandoori Pomfret (Half)', category: 'Starters', price: 349, isVeg: false,
+    description: 'Fresh pomfret fish marinated in tandoori spices and grilled to juicy perfection.',
+    imageURL: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80&fit=crop',
+    modelURL: MDL.tandoori, isAvailable: true,
+  },
+
+  // Additional Main Course
+  {
+    id: 'm8', name: 'Rogan Josh Prawns', category: 'Main Course', price: 399, isVeg: false,
+    description: 'Tender prawns cooked in aromatic Kashmiri spice gravy with yogurt and cream.',
+    imageURL: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80&fit=crop',
+    modelURL: MDL.curry, isAvailable: true,
+  },
+  {
+    id: 'm9', name: 'Chettinad Chicken', category: 'Main Course', price: 289, isVeg: false,
+    description: 'Spicy South Indian chicken cooked with freshly roasted spices and coconut.',
+    imageURL: 'https://images.unsplash.com/photo-1610192244261-8e5a65e00d47?w=500&q=80&fit=crop',
+    modelURL: MDL.curry, isAvailable: true,
+  },
+  {
+    id: 'm10', name: 'Shahi Tukda', category: 'Main Course', price: 259, isVeg: true,
+    description: 'Soft bread soaked in saffron-infused cream, topped with dry fruits and rabri.',
+    imageURL: 'https://images.unsplash.com/photo-1578020190125-f4f7c18bc9cb?w=500&q=80&fit=crop',
+    modelURL: MDL.curry, isAvailable: true,
+  },
+  {
+    id: 'm11', name: 'Biryani Chicken Gravy', category: 'Main Course', price: 249, isVeg: false,
+    description: 'Tender biryani chicken served with rich saffron-tomato-cream gravy.',
+    imageURL: 'https://images.unsplash.com/photo-1609501676725-7186f017a4b8?w=500&q=80&fit=crop',
+    modelURL: MDL.curry, isAvailable: true,
+  },
+  {
+    id: 'm12', name: 'Awadhi Aloo Dum', category: 'Main Course', price: 189, isVeg: true,
+    description: 'Royal potatoes slow-cooked in spiced yogurt and cream with whole spices.',
+    imageURL: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&q=80&fit=crop',
+    modelURL: MDL.curry, isAvailable: true,
+  },
+
+  // Additional Biryani & Rice
+  {
+    id: 'r6', name: 'Hyderabadi Dum Biryani', category: 'Biryani & Rice', price: 349, isVeg: false,
+    description: 'Authentic Hyderabadi style with marinated meat, saffron rice and kewra essence.',
+    imageURL: 'https://images.unsplash.com/photo-1543654695-192e0efc7d99?w=500&q=80&fit=crop',
+    modelURL: MDL.biryani, isAvailable: true,
+  },
+  {
+    id: 'r7', name: 'Prawn Biryani', category: 'Biryani & Rice', price: 399, isVeg: false,
+    description: 'Succulent prawns layered with fragrant basmati, saffron and fried onions.',
+    imageURL: 'https://images.unsplash.com/photo-1585521537348-09cd348f5ee3?w=500&q=80&fit=crop',
+    modelURL: MDL.biryani, isAvailable: true,
+  },
+  {
+    id: 'r8', name: 'Paneer Dum Biryani', category: 'Biryani & Rice', price: 259, isVeg: true,
+    description: 'Soft paneer cubes layered with basmati rice in dum-cooked style with spices.',
+    imageURL: 'https://images.unsplash.com/photo-1585043666747-69f6646db940?w=500&q=80&fit=crop',
+    modelURL: MDL.biryani, isAvailable: true,
+  },
+  {
+    id: 'r9', name: 'Lucknowi Biryani', category: 'Biryani & Rice', price: 329, isVeg: false,
+    description: 'Premium Lucknowi style biryani with meat, fried onions, mint and saffron.',
+    imageURL: 'https://images.unsplash.com/photo-1579954614171-52a2010459e2?w=500&q=80&fit=crop',
+    modelURL: MDL.biryani, isAvailable: true,
+  },
+
+  // Additional Chinese Corner
+  {
+    id: 'c5', name: 'Chicken Hakka Noodles', category: 'Chinese Corner', price: 199, isVeg: false,
+    description: 'Stir-fried noodles with diced chicken and crispy vegetables in Indo-Chinese sauce.',
+    imageURL: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=500&q=80&fit=crop',
+    modelURL: MDL.noodle, isAvailable: true,
+  },
+  {
+    id: 'c6', name: 'Dragon Chicken Fried Rice', category: 'Chinese Corner', price: 229, isVeg: false,
+    description: 'Wok-tossed rice with chicken, cashews and dragon sauce. Premium Indo-Chinese.',
+    imageURL: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=500&q=80&fit=crop',
+    modelURL: MDL.rice, isAvailable: true,
+  },
+  {
+    id: 'c7', name: 'Paneer Chilli Garlic Noodles', category: 'Chinese Corner', price: 179, isVeg: true,
+    description: 'Stir-fried noodles with soft paneer, chilli and loads of garlic in a wok.',
+    imageURL: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80&fit=crop',
+    modelURL: MDL.noodle, isAvailable: true,
+  },
+  {
+    id: 'c8', name: 'Honey Soy Chicken Fried Rice', category: 'Chinese Corner', price: 219, isVeg: false,
+    description: 'Rice tossed with chicken, honey and soy sauce. A sweet-savory Indo-Chinese fusion.',
+    imageURL: 'https://images.unsplash.com/photo-1609501676725-7186f017a4b8?w=500&q=80&fit=crop',
+    modelURL: MDL.rice, isAvailable: true,
+  },
+
+  // Additional Breads
+  {
+    id: 'br5', name: 'Cheese Naan', category: 'Breads', price: 65, isVeg: true,
+    description: 'Soft tandoori naan stuffed with melted mozzarella cheese and dry herbs.',
+    imageURL: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=500&q=80&fit=crop',
+    modelURL: MDL.naan, isAvailable: true,
+  },
+  {
+    id: 'br6', name: 'Pani Puri Bread', category: 'Breads', price: 50, isVeg: true,
+    description: 'Crispy hollow puffed bread for paani puri. Sold per piece.',
+    imageURL: 'https://images.unsplash.com/photo-1585238342024-78d387f4a707?w=500&q=80&fit=crop',
+    modelURL: MDL.naan, isAvailable: true,
+  },
+  {
+    id: 'br7', name: 'Amritsari Kulcha', category: 'Breads', price: 75, isVeg: true,
+    description: 'Soft leavened bread stuffed with spicy potato, paneer and amchur powder.',
+    imageURL: 'https://images.unsplash.com/photo-1574197867468-7ec4619f0b64?w=500&q=80&fit=crop',
+    modelURL: MDL.naan, isAvailable: true,
+  },
+  {
+    id: 'br8', name: 'Laccha Paratha', category: 'Breads', price: 59, isVeg: true,
+    description: 'Flaky multi-layered paratha with ghee, served with curd and pickle.',
+    imageURL: 'https://images.unsplash.com/photo-1509722747041-616f39b57569?w=500&q=80&fit=crop',
+    modelURL: MDL.naan, isAvailable: true,
+  },
+
+  // Additional Desserts
+  {
+    id: 'de5', name: 'Ras Malai', category: 'Desserts', price: 99, isVeg: true,
+    description: 'Soft paneer dumplings in chilled sweetened milk with saffron and cardamom.',
+    imageURL: 'https://images.unsplash.com/photo-1578191519226-d66742f1dcf1?w=500&q=80&fit=crop',
+    modelURL: MDL.gulab, isAvailable: true,
+  },
+  {
+    id: 'de6', name: 'Jalebi with Rabri', category: 'Desserts', price: 89, isVeg: true,
+    description: 'Crispy orange spirals soaked in sugar syrup, served with thick creamy rabri.',
+    imageURL: 'https://images.unsplash.com/photo-1585521537348-09cd348f5ee3?w=500&q=80&fit=crop',
+    modelURL: MDL.gulab, isAvailable: true,
+  },
+  {
+    id: 'de7', name: 'Kheer', category: 'Desserts', price: 79, isVeg: true,
+    description: 'Traditional rice pudding cooked in milk with cardamom and topped with dry fruits.',
+    imageURL: 'https://images.unsplash.com/photo-1583623025817-d180a2221d0a?w=500&q=80&fit=crop',
+    modelURL: MDL.gulab, isAvailable: true,
+  },
+  {
+    id: 'de8', name: 'Choco Lava Cake', category: 'Desserts', price: 159, isVeg: true,
+    description: 'Warm chocolate cake with molten chocolate center, served with ice cream.',
+    imageURL: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&q=80&fit=crop',
+    modelURL: MDL.brownie, isAvailable: true,
+  },
+
+  // Additional Drinks & Shakes
+  {
+    id: 'dr5', name: 'Strawberry Banana Shake', category: 'Drinks & Shakes', price: 119, isVeg: true,
+    description: 'Blended strawberry and banana with milk, topped with whipped cream.',
+    imageURL: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=500&q=80&fit=crop',
+    modelURL: MDL.milkshake, isAvailable: true,
+  },
+  {
+    id: 'dr6', name: 'Kulfi Shake', category: 'Drinks & Shakes', price: 129, isVeg: true,
+    description: 'Traditional kulfi blended into a thick shake with cardamom and pistachios.',
+    imageURL: 'https://images.unsplash.com/photo-1572490122747-3e9bbd0f1939?w=500&q=80&fit=crop',
+    modelURL: MDL.milkshake, isAvailable: true,
+  },
+  {
+    id: 'dr7', name: 'Virgin Mojito', category: 'Drinks & Shakes', price: 89, isVeg: true,
+    description: 'Refreshing mint and lime mocktail with soda and a hint of sugar. Perfect for hot days.',
+    imageURL: 'https://images.unsplash.com/photo-1621263764928-df1444c5e859?w=500&q=80&fit=crop',
+    modelURL: MDL.milkshake, isAvailable: true,
+  },
+  {
+    id: 'dr8', name: 'Cold Coffee Blast', category: 'Drinks & Shakes', price: 109, isVeg: true,
+    description: 'Iced coffee blended with milk, whipped cream and chocolate syrup.',
+    imageURL: 'https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?w=500&q=80&fit=crop',
+    modelURL: MDL.chai, isAvailable: true,
+  },
+
+  // New Category - Special Combos (Value Meals)
+  {
+    id: 'co1', name: 'Combo Meal 1', category: 'Special Combos', price: 349, isVeg: true,
+    description: 'Paneer Tikka + Garlic Naan + Dal Makhani + Gulab Jamun + Chai.',
+    imageURL: 'https://images.unsplash.com/photo-1567689002236-b8286a9d3ac0?w=500&q=80&fit=crop',
+    modelURL: MDL.curry, isAvailable: true,
+  },
+  {
+    id: 'co2', name: 'Combo Meal 2', category: 'Special Combos', price: 399, isVeg: false,
+    description: 'Butter Chicken + Biryani + Raita + Dessert + Lassi.',
+    imageURL: 'https://images.unsplash.com/photo-1567689002236-b8286a9d3ac0?w=500&q=80&fit=crop',
+    modelURL: MDL.biryani, isAvailable: true,
+  },
+  {
+    id: 'co3', name: 'Biggies Feast', category: 'Special Combos', price: 599, isVeg: false,
+    description: 'Mixed tandoori platter for 2 with naan, rice, butter chicken and gulab jamun.',
+    imageURL: 'https://images.unsplash.com/photo-1567689002236-b8286a9d3ac0?w=500&q=80&fit=crop',
+    modelURL: MDL.tandoori, isAvailable: true,
+  },
+
+  // New Category - Healthy Options
+  {
+    id: 'h1', name: 'Grilled Chicken Salad', category: 'Healthy Options', price: 199, isVeg: false,
+    description: 'Grilled tandoori chicken over mixed greens with lemon vinaigrette.',
+    imageURL: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=500&q=80&fit=crop',
+    modelURL: MDL.curry, isAvailable: true,
+  },
+  {
+    id: 'h2', name: 'Quinoa Buddha Bowl', category: 'Healthy Options', price: 189, isVeg: true,
+    description: 'Quinoa, roasted vegetables, paneer, sprouts and tahini dressing.',
+    imageURL: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80&fit=crop',
+    modelURL: MDL.noodle, isAvailable: true,
+  },
+  {
+    id: 'h3', name: 'Steamed Momos', category: 'Healthy Options', price: 129, isVeg: true,
+    description: 'Soft steamed dumplings filled with vegetables and cottage cheese. Served with dip.',
+    imageURL: 'https://images.unsplash.com/photo-1558522291-3689b7d4ba47?w=500&q=80&fit=crop',
+    modelURL: MDL.wrap, isAvailable: true,
+  },
+  {
+    id: 'h4', name: 'Protein Paneer Bowl', category: 'Healthy Options', price: 219, isVeg: true,
+    description: 'Marinated paneer, steamed broccoli, brown rice and sesame seeds with soy dressing.',
+    imageURL: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80&fit=crop',
+    modelURL: MDL.curry, isAvailable: true,
+  },
+
+  // New Category - Indian Street Food
+  {
+    id: 'sf1', name: 'Samosa (2 pcs)', category: 'Indian Street Food', price: 49, isVeg: true,
+    description: 'Crispy triangular pastry filled with spiced potato. Served with chutneys.',
+    imageURL: 'https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=500&q=80&fit=crop',
+    modelURL: MDL.wrap, isAvailable: true,
+  },
+  {
+    id: 'sf2', name: 'Pani Puri', category: 'Indian Street Food', price: 69, isVeg: true,
+    description: 'Crispy hollow puri filled with spiced potatoes, chickpeas and tangy water.',
+    imageURL: 'https://images.unsplash.com/photo-1585238341710-4b00f1b63a90?w=500&q=80&fit=crop',
+    modelURL: MDL.wrap, isAvailable: true,
+  },
+  {
+    id: 'sf3', name: 'Chaat Papdi', category: 'Indian Street Food', price: 59, isVeg: true,
+    description: 'Crispy papdi layered with yogurt, potatoes, chickpeas and tamarind chutney.',
+    imageURL: 'https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=500&q=80&fit=crop',
+    modelURL: MDL.wrap, isAvailable: true,
+  },
+  {
+    id: 'sf4', name: 'Aloo Tikki', category: 'Indian Street Food', price: 79, isVeg: true,
+    description: 'Crispy potato patties served with mint chutney and tamarind sauce. 2 pieces.',
+    imageURL: 'https://images.unsplash.com/photo-1585238342024-78d387f4a707?w=500&q=80&fit=crop',
+    modelURL: MDL.noodle, isAvailable: true,
+  },
+
+  // Additional variety
+  {
+    id: 'x1', name: 'Masala Dosa', category: 'South Indian', price: 149, isVeg: true,
+    description: 'Crispy rice crepe filled with spiced potatoes, served with sambar and chutney.',
+    imageURL: 'https://images.unsplash.com/photo-1585238341710-4b00f1b63a90?w=500&q=80&fit=crop',
+    modelURL: MDL.naan, isAvailable: true,
+  },
+  {
+    id: 'x2', name: 'Paneer Idli', category: 'South Indian', price: 139, isVeg: true,
+    description: 'Soft steamed cakes made with paneer and rice flour, served with sambar.',
+    imageURL: 'https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=500&q=80&fit=crop',
+    modelURL: MDL.naan, isAvailable: true,
   },
 ];

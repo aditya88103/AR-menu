@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchCategories, fetchAvailableDishes } from '../../utils/firestore';
+import { onAvailableDishesChange, onCategoriesChange, initializeDemoData } from '../../utils/firestore';
 import DishCard from '../../components/menu/DishCard';
 
 function SkeletonCard() {
@@ -33,28 +33,26 @@ export default function MenuPage() {
   const navRef      = useRef();
   const pillRefs    = useRef({});
 
-  // ── Load data ───────────────────────────────────────────────
-  const loadData = () => {
-    Promise.all([
-      fetchCategories(),
-      fetchAvailableDishes(),
-    ]).then(([cats, dishesList]) => {
-      setCategories(cats);
+  // ── Load data with real-time listeners ──────────────────────
+  useEffect(() => {
+    // Initialize demo data on first load
+    initializeDemoData().catch(err => console.warn('Demo data init failed:', err));
+    
+    // Set up real-time listeners
+    const unsubscribeDishes = onAvailableDishesChange((dishesList) => {
       setDishes(dishesList);
+      setLoading(false);
+    });
+    
+    const unsubscribeCategories = onCategoriesChange((cats) => {
+      setCategories(cats);
       if (cats.length) setActive(prev => prev || cats[0].name);
       setLoading(false);
-    }).catch(() => setLoading(false));
-  };
+    });
 
-  useEffect(() => {
-    loadData();
-    // Re-fetch when localStorage changes (e.g. admin hides a dish in another tab)
-    window.addEventListener('storage', loadData);
-    // Re-fetch when user switches back to this tab
-    window.addEventListener('focus', loadData);
     return () => {
-      window.removeEventListener('storage', loadData);
-      window.removeEventListener('focus', loadData);
+      unsubscribeDishes();
+      unsubscribeCategories();
     };
   }, []);
 

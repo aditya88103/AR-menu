@@ -12,22 +12,24 @@ const IS_MOBILE  = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 const IS_IOS     = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 const IS_ANDROID = /Android/i.test(navigator.userAgent);
 
-/* iOS-safe scroll lock */
 function lockScroll() {
   const y = window.scrollY;
   document.body.dataset.scrollY = y;
-  document.body.style.cssText +=
-    `;position:fixed;top:-${y}px;left:0;right:0;width:100%;overflow:hidden`;
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${y}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+  document.body.style.overflow = 'hidden';
 }
 function unlockScroll() {
   const y = parseInt(document.body.dataset.scrollY || '0', 10);
-  document.body.style.cssText = document.body.style.cssText
-    .replace(/;?position:[^;]+/g, '')
-    .replace(/;?top:[^;]+/g, '')
-    .replace(/;?left:[^;]+/g, '')
-    .replace(/;?right:[^;]+/g, '')
-    .replace(/;?width:[^;]+/g, '')
-    .replace(/;?overflow:[^;]+/g, '');
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  document.body.style.overflow = '';
   window.scrollTo(0, y);
 }
 
@@ -51,10 +53,25 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
   useEffect(() => {
     const mv = mvRef.current;
     if (!mv) return;
+    
+    // Catch cases where model is already loaded
+    if (mv.modelIsVisible) {
+      setLoaded(true);
+    }
+    
     const onLoad = () => setLoaded(true);
+    const onProgress = (e) => {
+      if (e.detail && e.detail.totalProgress === 1) setLoaded(true);
+    };
+
     mv.addEventListener('load', onLoad);
-    return () => mv.removeEventListener('load', onLoad);
-  }, []);
+    mv.addEventListener('progress', onProgress);
+    
+    return () => {
+      mv.removeEventListener('load', onLoad);
+      mv.removeEventListener('progress', onProgress);
+    };
+  }, [view, modelUrl]);
 
   /* ─── Styles ─────────────────────────────────────────────── */
   const overlay = {
@@ -68,6 +85,7 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
   const sheet = IS_MOBILE
     ? {
         width: '100%',
+        height: '92dvh',
         maxHeight: '92dvh',
         borderRadius: '24px 24px 0 0',
         overflow: 'hidden',
@@ -76,6 +94,7 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
       }
     : {
         width: 460,
+        height: 650,
         maxHeight: '85vh',
         borderRadius: 20,
         overflow: 'hidden',
