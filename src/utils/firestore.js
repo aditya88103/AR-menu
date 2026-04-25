@@ -83,19 +83,22 @@ export function onDishesChange(callback) {
 }
 
 export function onAvailableDishesChange(callback) {
+  console.log('🔄 Setting up dishes listener...');
+  
   const channel = supabase
     .channel('available-dishes-changes')
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'dishes' },
       async () => {
+        console.log('🔔 Dishes changed, refetching...');
         // Re-fetch available dishes when any change happens
         const { data, error } = await supabase
           .from('dishes')
           .select('*')
           .eq('isavailable', true);  // lowercase column name
         if (!error && data) {
-          console.log('✅ Dishes fetched from Supabase:', data.length);
+          console.log('✅ Dishes fetched from Supabase:', data.length, data);
           callback(data);
         } else if (error) {
           console.error('❌ Error fetching dishes:', error);
@@ -105,16 +108,27 @@ export function onAvailableDishesChange(callback) {
     .subscribe();
 
   // Also fetch initial data
+  console.log('📥 Fetching initial dishes...');
   supabase
     .from('dishes')
     .select('*')
     .eq('isavailable', true)  // lowercase column name
     .then(({ data, error }) => {
       if (!error && data) {
-        console.log('✅ Initial dishes loaded:', data.length);
+        console.log('✅ Initial dishes loaded:', data.length, data);
         callback(data);
       } else if (error) {
         console.error('❌ Error loading initial dishes:', error);
+        // Try without filter as fallback
+        console.log('🔄 Trying to fetch all dishes without filter...');
+        supabase.from('dishes').select('*').then(({ data: allData, error: allError }) => {
+          if (!allError && allData) {
+            console.log('✅ All dishes (no filter):', allData.length, allData);
+            callback(allData);
+          } else {
+            console.error('❌ Failed to fetch any dishes:', allError);
+          }
+        });
       }
     });
 
@@ -125,19 +139,22 @@ export function onAvailableDishesChange(callback) {
 }
 
 export function onCategoriesChange(callback) {
+  console.log('🔄 Setting up categories listener...');
+  
   const channel = supabase
     .channel('categories-changes')
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'categories' },
       async () => {
+        console.log('🔔 Categories changed, refetching...');
         // Re-fetch all categories when any change happens
         const { data, error } = await supabase
           .from('categories')
           .select('*')
           .order('order', { ascending: true });
         if (!error && data) {
-          console.log('✅ Categories fetched from Supabase:', data.length);
+          console.log('✅ Categories fetched from Supabase:', data.length, data);
           callback(data);
         } else if (error) {
           console.error('❌ Error fetching categories:', error);
@@ -147,13 +164,14 @@ export function onCategoriesChange(callback) {
     .subscribe();
 
   // Also fetch initial data
+  console.log('📥 Fetching initial categories...');
   supabase
     .from('categories')
     .select('*')
     .order('order', { ascending: true })
     .then(({ data, error }) => {
       if (!error && data) {
-        console.log('✅ Initial categories loaded:', data.length);
+        console.log('✅ Initial categories loaded:', data.length, data);
         callback(data);
       } else if (error) {
         console.error('❌ Error loading initial categories:', error);
