@@ -107,6 +107,11 @@ function TryOnTableBtn({ onClick }) {
 
 export default function DishCard({ dish, accentColor = '#e11d48' }) {
   const [showAR, setShowAR] = useState(false);
+  
+  // Handle both column name cases
+  const isVeg = dish.isVeg !== undefined ? dish.isVeg : dish.isveg;
+  const imageURL = dish.imageURL || dish.imageurl || '';
+  const modelURL = dish.modelURL || dish.modelurl || '';
 
   return (
     <>
@@ -137,8 +142,8 @@ export default function DishCard({ dish, accentColor = '#e11d48' }) {
           flexShrink: 0,
           boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
         }}>
-          {dish.imageURL
-            ? <LazyImage src={dish.imageURL} alt={dish.name} />
+          {imageURL
+            ? <LazyImage src={imageURL} alt={dish.name} />
             : (
               <div style={{
                 width: '100%', height: '100%',
@@ -148,7 +153,7 @@ export default function DishCard({ dish, accentColor = '#e11d48' }) {
               }}>🍽️</div>
             )
           }
-          {dish.modelURL && <ARBadge />}
+          {modelURL && <ARBadge />}
         </div>
 
         {/* Right: Info */}
@@ -159,11 +164,11 @@ export default function DishCard({ dish, accentColor = '#e11d48' }) {
             <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               width: 14, height: 14, borderRadius: 3, flexShrink: 0, marginTop: 3,
-              border: `1.5px solid ${dish.isVeg === true ? '#16a34a' : '#dc2626'}`,
+              border: `1.5px solid ${isVeg === true ? '#16a34a' : '#dc2626'}`,
             }}>
               <span style={{
                 width: 6, height: 6, borderRadius: '50%',
-                background: dish.isVeg === true ? '#16a34a' : '#dc2626',
+                background: isVeg === true ? '#16a34a' : '#dc2626',
                 display: 'block',
               }} />
             </span>
@@ -194,13 +199,13 @@ export default function DishCard({ dish, accentColor = '#e11d48' }) {
             </p>
           )}
 
-          {dish.modelURL && <TryOnTableBtn onClick={() => setShowAR(true)} />}
+          {modelURL && <TryOnTableBtn onClick={() => setShowAR(true)} />}
         </div>
       </div>
 
       {showAR && (
         <ARModal
-          modelUrl={dish.modelURL}
+          modelUrl={modelURL}
           dishName={dish.name}
           onClose={() => setShowAR(false)}
         />
