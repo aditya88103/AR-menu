@@ -11,18 +11,31 @@ function ImageUploadField({ label, file, setFile, existingUrl }) {
   const galleryRef = useRef();
   const cameraRef  = useRef();
   const [preview, setPreview] = useState(existingUrl || null);
+  const [urlInput, setUrlInput] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   const handleFile = (f) => {
     if (!f) return;
     setFile(f);
     setPreview(URL.createObjectURL(f));
+    setShowUrlInput(false);
+  };
+
+  const handleUrlSubmit = () => {
+    if (urlInput.trim()) {
+      setPreview(urlInput.trim());
+      setFile(null); // Clear file if using URL
+      setShowUrlInput(false);
+    }
   };
 
   return (
     <div>
-      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 8 }}>
-        {label}
-      </label>
+      {label && (
+        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+          {label}
+        </label>
+      )}
 
       {/* Preview */}
       {preview && (
@@ -33,7 +46,7 @@ function ImageUploadField({ label, file, setFile, existingUrl }) {
           }} />
           <button
             type="button"
-            onClick={() => { setPreview(null); setFile(null); }}
+            onClick={() => { setPreview(null); setFile(null); setUrlInput(''); }}
             style={{
               position: 'absolute', top: 8, right: 8,
               background: 'rgba(0,0,0,0.6)', color: '#fff',
@@ -44,14 +57,46 @@ function ImageUploadField({ label, file, setFile, existingUrl }) {
         </div>
       )}
 
+      {/* URL Input */}
+      {showUrlInput && (
+        <div style={{ marginBottom: 10, display: 'flex', gap: 8 }}>
+          <input
+            type="url"
+            placeholder="https://example.com/image.jpg"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            className="admin-input"
+            style={{ flex: 1 }}
+          />
+          <button
+            type="button"
+            onClick={handleUrlSubmit}
+            style={{
+              padding: '10px 16px', borderRadius: 10,
+              background: '#16a34a', color: '#fff',
+              border: 'none', cursor: 'pointer', fontWeight: 600,
+            }}
+          >✓</button>
+          <button
+            type="button"
+            onClick={() => setShowUrlInput(false)}
+            style={{
+              padding: '10px 16px', borderRadius: 10,
+              background: '#ef4444', color: '#fff',
+              border: 'none', cursor: 'pointer', fontWeight: 600,
+            }}
+          >✕</button>
+        </div>
+      )}
+
       {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {/* Camera button — opens camera directly on mobile */}
         <button
           type="button"
           onClick={() => cameraRef.current?.click()}
           style={{
-            flex: 1, padding: '10px', borderRadius: 10,
+            flex: 1, minWidth: 120, padding: '10px', borderRadius: 10,
             background: 'linear-gradient(135deg,#e11d48,#9f1239)',
             color: '#fff', border: 'none', cursor: 'pointer',
             fontWeight: 600, fontSize: '0.85rem',
@@ -66,7 +111,7 @@ function ImageUploadField({ label, file, setFile, existingUrl }) {
           type="button"
           onClick={() => galleryRef.current?.click()}
           style={{
-            flex: 1, padding: '10px', borderRadius: 10,
+            flex: 1, minWidth: 120, padding: '10px', borderRadius: 10,
             background: '#f3f4f6', color: '#374151',
             border: '1.5px solid #e5e7eb', cursor: 'pointer',
             fontWeight: 600, fontSize: '0.85rem',
@@ -74,6 +119,21 @@ function ImageUploadField({ label, file, setFile, existingUrl }) {
           }}
         >
           🖼️ Upload File
+        </button>
+
+        {/* URL button */}
+        <button
+          type="button"
+          onClick={() => setShowUrlInput(true)}
+          style={{
+            flex: 1, minWidth: 120, padding: '10px', borderRadius: 10,
+            background: '#eff6ff', color: '#1e40af',
+            border: '1.5px solid #bfdbfe', cursor: 'pointer',
+            fontWeight: 600, fontSize: '0.85rem',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}
+        >
+          🔗 Use URL
         </button>
       </div>
 
@@ -249,8 +309,25 @@ export default function DishForm() {
       fetchDishes().then(dishes => {
         const dish = dishes.find(d => d.id === id);
         if (dish) {
-          setForm({ name: dish.name, price: dish.price, description: dish.description, category: dish.category, isVeg: dish.isVeg === true ? true : dish.isVeg === false ? false : null });
-          setExisting(dish);
+          // Handle both column name cases
+          const isVeg = dish.isVeg !== undefined ? dish.isVeg : dish.isveg;
+          const imageURL = dish.imageURL || dish.imageurl || '';
+          const modelURL = dish.modelURL || dish.modelurl || '';
+          
+          setForm({ 
+            name: dish.name, 
+            price: dish.price, 
+            description: dish.description, 
+            category: dish.category, 
+            isVeg: isVeg === true ? true : isVeg === false ? false : null 
+          });
+          setExisting({ 
+            ...dish, 
+            imageURL, 
+            modelURL 
+          });
+          
+          console.log('📝 Loaded dish for editing:', { name: dish.name, imageURL, modelURL });
         }
       });
     }
@@ -271,28 +348,48 @@ export default function DishForm() {
       let imageURL = existingData.imageURL || '';
       let modelURL = existingData.modelURL || '';
 
+      console.log('💾 Saving dish...', { imageFile: !!imageFile, modelFile: !!modelFile });
+
       // Upload files if provided (optional)
       if (imageFile) {
+        console.log('📤 Uploading image...');
         const uploaded = await uploadFile(imageFile, 'dishes/images');
-        if (uploaded) imageURL = uploaded;
+        if (uploaded) {
+          imageURL = uploaded;
+          console.log('✅ Image uploaded:', imageURL);
+        } else {
+          console.warn('⚠️ Image upload failed, keeping existing URL');
+        }
       }
       if (modelFile) {
+        console.log('📤 Uploading model...');
         const uploaded = await uploadFile(modelFile, 'dishes/models');
-        if (uploaded) modelURL = uploaded;
+        if (uploaded) {
+          modelURL = uploaded;
+          console.log('✅ Model uploaded:', modelURL);
+        }
       }
 
-      const data = { ...form, price: parseFloat(form.price), imageURL, modelURL };
+      const data = { 
+        ...form, 
+        price: parseFloat(form.price), 
+        imageURL, 
+        modelURL 
+      };
+
+      console.log('💾 Final data to save:', data);
 
       if (isEdit) {
         await updateDish(id, data);
         toast.success('Dish updated! ✅');
       } else {
-        await addDish(data);
+        const newDish = await addDish(data);
+        console.log('✅ Dish added:', newDish);
         toast.success('Dish added! 🍽️');
       }
       navigate('/admin/dishes');
     } catch (err) {
-      console.error('Save error:', err);
+      console.error('❌ Save error:', err);
       toast.error(err.message || 'Failed to save dish');
     } finally {
       setSaving(false);
