@@ -32,9 +32,11 @@ export default function DishesPage() {
     setToggling(dish.id);
     try {
       await toggleDishAvailability(dish.id, !dish.isAvailable);
-      setDishes(prev => prev.map(d => d.id === dish.id ? { ...d, isAvailable: !d.isAvailable } : d));
+      // Don't update state locally - let the real-time listener handle it
+      // This ensures all browsers stay in sync
       toast.success(dish.isAvailable ? `"${dish.name}" hidden from menu` : `"${dish.name}" now visible`);
-    } catch {
+    } catch (err) {
+      console.error('Toggle error:', err);
       toast.error('Failed to update availability');
     } finally {
       setToggling(null);
