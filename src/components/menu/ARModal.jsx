@@ -75,22 +75,28 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
 
   /* ─── Styles ─────────────────────────────────────────────── */
   const overlay = {
-    position: 'fixed', inset: 0, zIndex: 9999,
-    background: 'rgba(0,0,0,0.75)',
+    position: 'fixed', 
+    inset: 0, 
+    zIndex: 9999,
+    background: 'rgba(0,0,0,0.85)',
     display: 'flex',
-    alignItems:     IS_MOBILE ? 'flex-end' : 'center',
+    alignItems: IS_MOBILE ? 'flex-end' : 'center',
     justifyContent: 'center',
+    backdropFilter: 'blur(4px)',
+    WebkitBackdropFilter: 'blur(4px)',
   };
 
   const sheet = IS_MOBILE
     ? {
         width: '100%',
-        height: '92dvh',
-        maxHeight: '92dvh',
+        height: '90vh',
+        maxHeight: '90vh',
         borderRadius: '24px 24px 0 0',
         overflow: 'hidden',
-        display: 'flex', flexDirection: 'column',
+        display: 'flex', 
+        flexDirection: 'column',
         background: '#0f0f1a',
+        boxShadow: '0 -4px 20px rgba(0,0,0,0.5)',
       }
     : {
         width: 460,
@@ -98,73 +104,100 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
         maxHeight: '85vh',
         borderRadius: 20,
         overflow: 'hidden',
-        display: 'flex', flexDirection: 'column',
+        display: 'flex', 
+        flexDirection: 'column',
         background: '#0f0f1a',
         boxShadow: '0 40px 100px rgba(0,0,0,0.8)',
       };
 
+  const handleBackdropClick = (e) => {
+    // Only close if clicking directly on backdrop, not on children
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   /* ─── Render ──────────────────────────────────────────────── */
   return (
-    <div style={overlay} onClick={onClose}>  {/* ← backdrop click closes */}
-      <div style={sheet} onClick={e => e.stopPropagation()}>
+    <div 
+      style={overlay} 
+      onClick={handleBackdropClick}
+      onTouchStart={handleBackdropClick}
+    >
+      <div 
+        style={sheet} 
+        onClick={e => e.stopPropagation()}
+        onTouchStart={e => e.stopPropagation()}
+      >
 
         {/* ── Header ─────────────────────────────────────────── */}
         <div style={{
           background: 'linear-gradient(135deg,#be123c,#e11d48)',
-          padding: '14px 16px',
-          display: 'flex', alignItems: 'center',
+          padding: '16px 16px',
+          display: 'flex', 
+          alignItems: 'center',
           justifyContent: 'space-between',
           flexShrink: 0,
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 24 }}>🪄</span>
-            <div>
-              <div style={{ color: '#fff', fontWeight: 800, fontSize: '0.9rem' }}>Try on Table</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 24, flexShrink: 0 }}>🪄</span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ color: '#fff', fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }}>
+                Try on Table
+              </div>
               <div style={{
-                color: 'rgba(255,255,255,0.75)', fontSize: '0.68rem',
-                maxWidth: IS_MOBILE ? 180 : 280,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>{dishName}</div>
+                color: 'rgba(255,255,255,0.8)', 
+                fontSize: '0.7rem',
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis', 
+                whiteSpace: 'nowrap',
+              }}>
+                {dishName}
+              </div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Toggle tabs */}
-            {IS_MOBILE && (
-              <div style={{
-                display: 'flex', borderRadius: 99, overflow: 'hidden',
-                border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)',
-              }}>
-                {['camera', '3d'].map((tab) => (
-                  <button key={tab}
-                    onClick={() => setView(tab)}
-                    style={{
-                      padding: '5px 12px', border: 'none', cursor: 'pointer',
-                      fontSize: '0.68rem', fontWeight: 700,
-                      background: view === tab ? 'rgba(255,255,255,0.25)' : 'transparent',
-                      color: '#fff',
-                      transition: 'background 0.2s',
-                    }}
-                  >{tab === 'camera' ? '📷 AR' : '🔄 3D'}</button>
-                ))}
-              </div>
-            )}
-            <button onClick={onClose} style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff', fontSize: 16, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>✕</button>
-          </div>
+          <button 
+            onClick={onClose}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            style={{
+              width: 36, 
+              height: 36, 
+              borderRadius: '50%',
+              background: 'rgba(0,0,0,0.3)', 
+              border: '1.5px solid rgba(255,255,255,0.25)',
+              color: '#fff', 
+              fontSize: 18, 
+              cursor: 'pointer',
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              flexShrink: 0,
+              marginLeft: 12,
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >✕</button>
         </div>
 
         {/* ════════════════════════════════════════════════════════
             MOBILE — CAMERA LAUNCH VIEW
         ════════════════════════════════════════════════════════ */}
-        {IS_MOBILE && view === 'camera' && (
+        {IS_MOBILE && (
           <div style={{
-            overflowY: 'auto', overflowX: 'hidden',
-            padding: '24px 20px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20,
+            flex: 1,
+            overflowY: 'auto', 
+            overflowX: 'hidden',
+            WebkitOverflowScrolling: 'touch',
+            padding: '24px 20px 100px',
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            gap: 20,
           }}>
 
             {/* Viewfinder */}
@@ -237,74 +270,85 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
               ))}
             </div>
 
-            {/* ── THE launch button ──
-                model-viewer is rendered hidden so its `ar-button` slot
-                works — that slot IS the camera launcher (user-gesture safe). */}
-            <div style={{ width: '100%', position: 'relative', marginTop: 20 }}>
-              {/* Hidden model-viewer */}
-              <model-viewer
-                ref={mvRef}
-                src={modelUrl}
-                ar
-                ar-modes="webxr scene-viewer quick-look"
-                style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-                loading="eager"
-                onLoad={() => setLoaded(true)}
+            {/* ── THE launch button ── */}
+            <model-viewer
+              ref={mvRef}
+              src={modelUrl}
+              ar
+              ar-modes="webxr scene-viewer quick-look"
+              style={{ 
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: 1,
+                opacity: 0,
+                pointerEvents: 'none',
+                zIndex: -1,
+              }}
+              loading="eager"
+            >
+              <button
+                slot="ar-button"
+                style={{
+                  position: 'fixed',
+                  bottom: 20,
+                  left: 20,
+                  right: 20,
+                  zIndex: 10000,
+                  padding: '18px 0',
+                  borderRadius: 999,
+                  background: loaded 
+                    ? 'linear-gradient(135deg,#e11d48,#be123c)' 
+                    : 'rgba(225,29,72,0.5)',
+                  color: '#fff', 
+                  border: 'none',
+                  fontWeight: 900, 
+                  fontSize: '1.05rem',
+                  fontFamily: 'inherit', 
+                  cursor: 'pointer',
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: 10,
+                  boxShadow: loaded 
+                    ? '0 8px 32px rgba(225,29,72,0.6)' 
+                    : '0 4px 16px rgba(0,0,0,0.3)',
+                  animation: loaded ? 'arBtnPulse 2s ease-in-out infinite' : 'none',
+                  whiteSpace: 'nowrap',
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
+                  opacity: loaded ? 1 : 0.7,
+                  pointerEvents: loaded ? 'auto' : 'none',
+                }}
               >
-                {/* Slot button = actual AR trigger via model-viewer internals */}
-                <button
-                  slot="ar-button"
-                  id="ar-launch-button"
-                  style={{
-                    width: '100%',
-                    padding: '17px 0',
-                    borderRadius: 999,
-                    background: 'linear-gradient(135deg,#e11d48,#be123c)',
-                    color: '#fff', border: 'none',
-                    fontWeight: 900, fontSize: '1rem',
-                    fontFamily: 'inherit', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                    boxShadow: '0 8px 32px rgba(225,29,72,0.55)',
-                    animation: 'arBtnPulse 2s ease-in-out infinite',
-                    whiteSpace: 'nowrap',
-                    touchAction: 'manipulation',
-                    WebkitTapHighlightColor: 'transparent',
-                  }}
-                >
-                  <span style={{ fontSize: 22 }}>📷</span>
-                  {IS_IOS ? 'View in Your Space' : 'Open AR Camera'}
-                </button>
-              </model-viewer>
-
-              {/* Loading placeholder (shown until model ready) */}
-              {!loaded && (
-                <button disabled style={{
-                  width: '100%', padding: '17px 0', borderRadius: 999,
-                  background: 'rgba(225,29,72,0.35)',
-                  color: 'rgba(255,255,255,0.6)', border: 'none',
-                  fontWeight: 900, fontSize: '1rem', fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                  cursor: 'not-allowed',
-                }}>
-                  <div style={{
-                    width: 18, height: 18, border: '2.5px solid rgba(255,255,255,0.3)',
-                    borderTopColor: '#fff', borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
-                  }} />
-                  Loading…
-                </button>
-              )}
-            </div>
-
-            {/* Bottom padding */}
-            <div style={{ height: 40, flexShrink: 0 }} />
+                {loaded ? (
+                  <>
+                    <span style={{ fontSize: 24 }}>📷</span>
+                    {IS_IOS ? 'View in Your Space' : 'Open AR Camera'}
+                  </>
+                ) : (
+                  <>
+                    <div style={{
+                      width: 20, 
+                      height: 20, 
+                      border: '3px solid rgba(255,255,255,0.3)',
+                      borderTopColor: '#fff', 
+                      borderRadius: '50%',
+                      animation: 'spin 0.8s linear infinite',
+                    }} />
+                    Loading AR...
+                  </>
+                )}
+              </button>
+            </model-viewer>
           </div>
         )}
 
         {/* ════════════════════════════════════════════════════════
-            3-D PREVIEW (desktop always + mobile '3d' tab)
+            DESKTOP — 3D PREVIEW
         ════════════════════════════════════════════════════════ */}
-        {(!IS_MOBILE || view === '3d') && (
+        {!IS_MOBILE && (
           <>
             {/* viewer area */}
             <div style={{
