@@ -64,9 +64,16 @@ function ARBadge() {
 function TryOnTableBtn({ onClick }) {
   const [hovered, setHovered] = useState(false);
 
+  const handleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClick();
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
+      onTouchEnd={handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -88,6 +95,7 @@ function TryOnTableBtn({ onClick }) {
         letterSpacing: '-0.01em',
         position: 'relative',
         overflow: 'hidden',
+        touchAction: 'manipulation',
       }}
     >
       {/* Shimmer sweep */}
