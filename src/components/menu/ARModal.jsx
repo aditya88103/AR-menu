@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
 
 export default function ARModal({ modelUrl, dishName, onClose }) {
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     // Prevent body scroll
@@ -17,19 +19,21 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
     };
     document.addEventListener('keydown', handleEscape);
     
+    // Preload model
+    if (modelUrl) {
+      fetch(modelUrl, { method: 'HEAD' })
+        .then(() => setLoaded(true))
+        .catch(() => {
+          setError(true);
+          setLoaded(true);
+        });
+    }
+    
     return () => {
       document.body.style.overflow = originalOverflow;
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [onClose]);
-
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      e.preventDefault();
-      e.stopPropagation();
-      onClose();
-    }
-  };
+  }, [onClose, modelUrl]);
 
   const handleCloseClick = (e) => {
     e.preventDefault();
@@ -37,10 +41,38 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
     onClose();
   };
 
+  const handleARClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!loaded || error) return;
+    
+    // For iOS - use AR Quick Look
+    if (IS_IOS) {
+      const link = document.createElement('a');
+      link.rel = 'ar';
+      link.href = modelUrl;
+      link.appendChild(document.createElement('img'));
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    // For Android - use Scene Viewer
+    else if (IS_ANDROID) {
+      const intent = `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(modelUrl)}&mode=ar_preferred#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(window.location.href)};end;`;
+      window.location.href = intent;
+    }
+    // Fallback - try model-viewer AR
+    else {
+      const modelViewer = document.querySelector('model-viewer');
+      if (modelViewer && modelViewer.canActivateAR) {
+        modelViewer.activateAR();
+      }
+    }
+  };
+
   const modalContent = (
     <div 
-      onClick={handleBackdropClick}
-      onTouchStart={(e) => e.stopPropagation()}
       style={{
         position: 'fixed',
         top: 0,
@@ -51,7 +83,6 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
         background: 'rgba(0,0,0,0.95)',
         display: 'flex',
         flexDirection: 'column',
-        touchAction: 'pan-y',
       }}
     >
       {/* Header with close button */}
@@ -86,6 +117,7 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
         <button
           onClick={handleCloseClick}
           onTouchEnd={handleCloseClick}
+          type="button"
           style={{
             width: 44,
             height: 44,
@@ -101,7 +133,7 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
             justifyContent: 'center',
             marginLeft: 16,
             flexShrink: 0,
-            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
           }}
         >
           ✕
@@ -154,6 +186,8 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
           }}>
             {IS_IOS 
               ? 'Tap the button below to see this dish on your table using AR Quick Look'
+              : IS_ANDROID
+              ? 'Tap the button below to open Google Scene Viewer and place this dish on your table'
               : 'Tap the button below to open your camera and place this dish on your table'}
           </p>
         </div>
@@ -193,24 +227,24 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
 
         {/* AR Button */}
         <div style={{ width: '100%', maxWidth: 340, marginTop: 8 }}>
-          <model-viewer
-            src={modelUrl}
-            ar
-            ar-modes="webxr scene-viewer quick-look"
-            camera-controls
-            style={{
-              width: '1px',
-              height: '1px',
-              position: 'absolute',
-              opacity: 0,
-              pointerEvents: 'none',
-            }}
-            loading="eager"
-            onLoad={() => setLoaded(true)}
-          >
+          {error ? (
+            <div style={{
+              padding: '18px',
+              borderRadius: 12,
+              background: 'rgba(239,68,68,0.2)',
+              border: '1px solid rgba(239,68,68,0.4)',
+              color: '#fca5a5',
+              fontSize: '0.9rem',
+              textAlign: 'center',
+            }}>
+              ⚠️ Model not available
+            </div>
+          ) : (
             <button
-              slot="ar-button"
+              onClick={handleARClick}
+              onTouchEnd={handleARClick}
               disabled={!loaded}
+              type="button"
               style={{
                 width: '100%',
                 padding: '18px',
@@ -233,13 +267,15 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
                 fontFamily: 'inherit',
                 opacity: loaded ? 1 : 0.7,
                 transition: 'all 0.3s',
-                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               {loaded ? (
                 <>
                   <span style={{ fontSize: 24 }}>📷</span>
-                  <span>{IS_IOS ? 'View in Your Space' : 'Open AR Camera'}</span>
+                  <span>
+                    {IS_IOS ? 'View in Your Space' : IS_ANDROID ? 'Open AR Camera' : 'Launch AR'}
+                  </span>
                 </>
               ) : (
                 <>
@@ -255,8 +291,22 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
                 </>
               )}
             </button>
-          </model-viewer>
+          )}
         </div>
+
+        {/* Hidden model-viewer for fallback */}
+        <model-viewer
+          src={modelUrl}
+          ar
+          ar-modes="webxr scene-viewer quick-look"
+          style={{
+            width: '1px',
+            height: '1px',
+            position: 'absolute',
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
+        />
       </div>
 
       {/* Bottom close button */}
@@ -269,6 +319,7 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
         <button
           onClick={handleCloseClick}
           onTouchEnd={handleCloseClick}
+          type="button"
           style={{
             width: '100%',
             padding: '14px',
@@ -279,7 +330,7 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
             fontSize: '1rem',
             fontWeight: 700,
             cursor: 'pointer',
-            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
           }}
         >
           Close
