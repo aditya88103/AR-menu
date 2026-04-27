@@ -27,25 +27,39 @@ export default function ARModal({ modelUrl, dishName, onClose }) {
     const modelViewer = modelViewerRef.current;
     if (!modelViewer) return;
 
+    console.log('🔍 Loading model from:', modelUrl);
+
     const handleLoad = () => {
+      console.log('✅ Model loaded successfully');
       setIsLoading(false);
       setError(null);
     };
 
     const handleError = (e) => {
-      console.error('Model loading error:', e);
+      console.error('❌ Model loading error:', e);
+      console.error('Model URL:', modelUrl);
       setIsLoading(false);
       setError('Failed to load 3D model');
     };
+
+    // Set a timeout to detect if model is taking too long
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        console.warn('⚠️ Model loading timeout - still loading after 10 seconds');
+        setError('Model loading timeout');
+        setIsLoading(false);
+      }
+    }, 10000);
 
     modelViewer.addEventListener('load', handleLoad);
     modelViewer.addEventListener('error', handleError);
 
     return () => {
+      clearTimeout(timeout);
       modelViewer.removeEventListener('load', handleLoad);
       modelViewer.removeEventListener('error', handleError);
     };
-  }, []);
+  }, [modelUrl, isLoading]);
 
   const handleCloseClick = (e) => {
     e.preventDefault();
