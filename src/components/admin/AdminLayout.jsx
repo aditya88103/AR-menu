@@ -233,6 +233,9 @@ export default function AdminLayout({ children, title }) {
           </button>
         </nav>
       </div>
+
+      {/* Preload order sound asset */}
+      <audio id="admin-order-chime" preload="auto" src="/sounds/order_chime.wav" style={{ display: 'none' }} />
     </div>
   );
 }

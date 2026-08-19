@@ -1,89 +1,23 @@
 /**
  * Restaurant Audio & Background Notification Manager
- * Melodic 4-Tone Crystal Marimba Chime + Background Push Notifications
+ * 3-Tier Multi-Layer Sound Engine (HTML5 Audio Asset + Web Audio Synthesizer + Push Notifications)
  */
 
 let audioCtx = null;
 let titleInterval = null;
-let cachedAudioElement = null;
+let singletonAudio = null;
 const ORIGINAL_TITLE = 'Biggies Admin';
+const CHIME_SRC = '/sounds/order_chime.wav';
 
-// Pre-synthesized melodic 4-tone restaurant chime (Ding-Ding-Ding-Dong! 🎶)
-function createMelodicChimeWavUrl() {
-  try {
-    const sampleRate = 44100;
-    const duration = 1.35;
-    const numSamples = Math.floor(sampleRate * duration);
-    const buffer = new ArrayBuffer(44 + numSamples * 2);
-    const view = new DataView(buffer);
-
-    const writeString = (offset, string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
-    };
-
-    // RIFF Header
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + numSamples * 2, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true); // PCM
-    view.setUint16(22, 1, true); // Mono
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
-    writeString(36, 'data');
-    view.setUint32(40, numSamples * 2, true);
-
-    // Melody: C5 (523Hz), E5 (659Hz), G5 (784Hz), C6 (1046Hz)
-    const notes = [
-      { freq: 523.25, start: 0.0, dur: 0.35, vol: 0.75 },
-      { freq: 659.25, start: 0.12, dur: 0.40, vol: 0.85 },
-      { freq: 783.99, start: 0.24, dur: 0.45, vol: 0.95 },
-      { freq: 1046.5, start: 0.38, dur: 0.95, vol: 1.0 },
-    ];
-
-    for (let i = 0; i < numSamples; i++) {
-      const t = i / sampleRate;
-      let sample = 0;
-
-      for (const n of notes) {
-        if (t >= n.start && t < n.start + n.dur) {
-          const elapsed = t - n.start;
-          const env = Math.exp(-elapsed * 5.5);
-          const w = 2 * Math.PI * n.freq;
-          // Rich marimba & glass bell harmonics
-          const wave = Math.sin(w * elapsed)
-                     + 0.35 * Math.sin(2 * w * elapsed)
-                     + 0.15 * Math.sin(3 * w * elapsed)
-                     + 0.08 * Math.sin(4 * w * elapsed);
-          sample += wave * env * n.vol;
-        }
-      }
-
-      sample = Math.max(-1, Math.min(1, sample * 0.48));
-      view.setInt16(44 + i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-    }
-
-    const blob = new Blob([buffer], { type: 'audio/wav' });
-    return URL.createObjectURL(blob);
-  } catch (e) {
-    return null;
+// Get or initialize singleton Audio element
+function getChimeAudio() {
+  if (typeof window === 'undefined') return null;
+  if (!singletonAudio) {
+    singletonAudio = new Audio(CHIME_SRC);
+    singletonAudio.volume = 1.0;
+    singletonAudio.preload = 'auto';
   }
-}
-
-let chimeUrl = null;
-if (typeof window !== 'undefined') {
-  try {
-    chimeUrl = createMelodicChimeWavUrl();
-    if (chimeUrl) {
-      cachedAudioElement = new Audio(chimeUrl);
-      cachedAudioElement.volume = 1.0;
-    }
-  } catch (e) {}
+  return singletonAudio;
 }
 
 export function getAudioContext() {
@@ -99,18 +33,22 @@ export function getAudioContext() {
   return audioCtx;
 }
 
-// Auto-unlock audio on user interaction
+// Auto-unlock audio permissions on any user interaction anywhere on the screen
 if (typeof window !== 'undefined') {
   const unlockAudio = () => {
+    // 1. Unlock HTML5 Audio
+    const snd = getChimeAudio();
+    if (snd) {
+      snd.play().then(() => {
+        snd.pause();
+        snd.currentTime = 0;
+      }).catch(() => {});
+    }
+
+    // 2. Unlock Web Audio Context
     const ctx = getAudioContext();
     if (ctx && ctx.state === 'suspended') {
       ctx.resume().catch(() => {});
-    }
-    if (cachedAudioElement) {
-      cachedAudioElement.play().then(() => {
-        cachedAudioElement.pause();
-        cachedAudioElement.currentTime = 0;
-      }).catch(() => {});
     }
   };
 
@@ -127,21 +65,29 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * Play premium 4-note melodic restaurant chime
+ * Play crystal-clear 4-note ascending restaurant chime
  */
 export function playRestaurantChime() {
-  // 1. Primary Engine: High-fidelity WAV Audio
+  let audioPlayed = false;
+
+  // 1. Primary Engine: Direct HTML5 Audio Element (Works in background tabs)
   try {
-    if (chimeUrl) {
-      const snd = new Audio(chimeUrl);
+    const snd = getChimeAudio();
+    if (snd) {
+      snd.currentTime = 0;
       snd.volume = 1.0;
-      snd.play().catch((err) => {
-        console.warn('HTML5 Audio note:', err);
-      });
+      const playPromise = snd.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          audioPlayed = true;
+        }).catch((err) => {
+          console.warn('HTML5 Audio play warning:', err);
+        });
+      }
     }
   } catch (e) {}
 
-  // 2. Secondary Engine: Web Audio synthesis fallback
+  // 2. Secondary Engine: Web Audio API Oscillator synthesis (Zero-network fallback)
   try {
     const ctx = getAudioContext();
     if (ctx) {
@@ -150,11 +96,12 @@ export function playRestaurantChime() {
       }
 
       const now = ctx.currentTime;
+      // Notes: F5 (698Hz), A5 (880Hz), C6 (1046Hz), F6 (1397Hz)
       const notes = [
-        { freq: 523.25, time: 0, dur: 0.35, gain: 0.45 },
-        { freq: 659.25, time: 0.12, dur: 0.40, gain: 0.5 },
-        { freq: 783.99, time: 0.24, dur: 0.45, gain: 0.55 },
-        { freq: 1046.5, time: 0.38, dur: 0.95, gain: 0.65 },
+        { freq: 698.46, time: 0, dur: 0.32, gain: 0.5 },
+        { freq: 880.00, time: 0.12, dur: 0.36, gain: 0.55 },
+        { freq: 1046.50, time: 0.24, dur: 0.42, gain: 0.65 },
+        { freq: 1396.91, time: 0.38, dur: 0.85, gain: 0.75 },
       ];
 
       notes.forEach(({ freq, time, dur, gain }) => {
@@ -220,12 +167,17 @@ export function stopTitleAlert() {
  * Full notification suite when new order arrives
  */
 export function notifyNewOrder(order) {
+  console.log('🔔 [SOUND ALERT TRIGGERED] New Order:', order?.order_number);
+
+  // 1. Play loud chime
   playRestaurantChime();
 
+  // 2. Flash page title if in background
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
     startTitleAlert(order);
   }
 
+  // 3. Desktop OS notification (works even when browser is minimized)
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const orderNum = order?.order_number || 'New Order';
