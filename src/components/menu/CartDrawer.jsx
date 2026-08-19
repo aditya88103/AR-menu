@@ -4,26 +4,24 @@ import { createOrder } from '../../utils/firestore';
 import toast from 'react-hot-toast';
 
 export default function CartDrawer({ isOpen, onClose, onOrderPlaced }) {
-  const items = useCartStore((state) => state.items);
-  const tableNumber = useCartStore((state) => state.tableNumber);
-  const customerInfo = useCartStore((state) => state.customerInfo);
+  const items = useCartStore((state) => state.items) || [];
+  const tableNumber = useCartStore((state) => state.tableNumber) || '1';
+  const customerInfo = useCartStore((state) => state.customerInfo) || { name: '', phone: '', notes: '' };
   const setTableNumber = useCartStore((state) => state.setTableNumber);
   const setCustomerInfo = useCartStore((state) => state.setCustomerInfo);
   const addItem = useCartStore((state) => state.addItem);
   const removeItem = useCartStore((state) => state.removeItem);
   const deleteItem = useCartStore((state) => state.deleteItem);
   const clearCart = useCartStore((state) => state.clearCart);
-  const getSubtotal = useCartStore((state) => state.getSubtotal);
-  const getTax = useCartStore((state) => state.getTax);
-  const getTotal = useCartStore((state) => state.getTotal);
   const setActiveOrder = useCartStore((state) => state.setActiveOrder);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTablePicker, setShowTablePicker] = useState(false);
 
-  const subtotal = getSubtotal();
-  const tax = getTax();
-  const total = getTotal();
+  const cartList = Array.isArray(items) ? items : [];
+  const subtotal = cartList.reduce((sum, i) => sum + (Number(i?.price) || 0) * (Number(i?.quantity) || 0), 0);
+  const tax = Math.round(subtotal * 0.05);
+  const total = subtotal + tax;
 
   if (!isOpen) return null;
 

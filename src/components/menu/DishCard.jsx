@@ -123,8 +123,9 @@ function AddToCartBtn({ dish }) {
   const addItem = useCartStore((state) => state.addItem);
   const removeItem = useCartStore((state) => state.removeItem);
 
-  const currentItem = items.find((i) => i.id === dish.id);
-  const quantity = currentItem ? currentItem.quantity : 0;
+  const cartList = Array.isArray(items) ? items : [];
+  const currentItem = cartList.find((i) => i?.id === dish?.id);
+  const quantity = Number(currentItem?.quantity) || 0;
 
   if (quantity > 0) {
     return (

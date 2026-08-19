@@ -41,14 +41,15 @@ export default function MenuPage() {
   const [isBillOpen, setIsBillOpen] = useState(false);
 
   // Store bindings
-  const tableNumber = useCartStore((state) => state.tableNumber);
+  const items = useCartStore((state) => state.items) || [];
+  const tableNumber = useCartStore((state) => state.tableNumber) || '1';
   const setTableNumber = useCartStore((state) => state.setTableNumber);
   const activeOrder = useCartStore((state) => state.activeOrder);
-  const getItemCount = useCartStore((state) => state.getItemCount);
-  const getTotal = useCartStore((state) => state.getTotal);
 
-  const totalItems = getItemCount();
-  const grandTotal = getTotal();
+  const cartList = Array.isArray(items) ? items : [];
+  const totalItems = cartList.reduce((sum, i) => sum + (Number(i?.quantity) || 0), 0);
+  const subtotal = cartList.reduce((sum, i) => sum + (Number(i?.price) || 0) * (Number(i?.quantity) || 0), 0);
+  const grandTotal = subtotal + Math.round(subtotal * 0.05);
 
   const sectionRefs = useRef({});
   const navRef      = useRef();

@@ -8,7 +8,8 @@
 // ─────────────────────────────────────────────────────────────
 
 // ── Local Model URL helpers ────────────────────────────────────
-const base = import.meta.env.BASE_URL ?? '/';    // e.g. '/Restaurant-/'
+const rawBase = import.meta.env.BASE_URL ?? './';
+const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
 const m = (name) => `${base}models/${name}.glb`;
 
 // Model map by food type
