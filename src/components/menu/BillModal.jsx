@@ -67,11 +67,19 @@ export default function BillModal({ order, onClose, onOrderMore }) {
 
   const statusInfo = getStatusBadge(currentOrder?.status);
 
-  // Combined totals calculation
-  const combinedItems = allActiveOrders.flatMap((o) => o.items || []);
-  const combinedSubtotal = allActiveOrders.reduce((sum, o) => sum + (Number(o.subtotal) || 0), 0);
-  const combinedTax = allActiveOrders.reduce((sum, o) => sum + (Number(o.tax) || 0), 0);
-  const combinedTotal = allActiveOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+  // Filter orders by payment/active status
+  const unpaidOrders = allActiveOrders.filter(
+    (o) => o?.status !== 'completed' && o?.status !== 'cancelled'
+  );
+  const paidOrders = allActiveOrders.filter((o) => o?.status === 'completed');
+
+  // Combined totals calculation strictly for UNPAID orders
+  const activeListForTotals = unpaidOrders.length > 0 ? unpaidOrders : allActiveOrders;
+  const combinedItems = (isCombinedView ? (unpaidOrders.length > 0 ? unpaidOrders : allActiveOrders) : []).flatMap((o) => o.items || []);
+  const combinedSubtotal = unpaidOrders.reduce((sum, o) => sum + (Number(o.subtotal) || 0), 0);
+  const combinedTax = unpaidOrders.reduce((sum, o) => sum + (Number(o.tax) || 0), 0);
+  const combinedTotal = unpaidOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+  const totalPaidAmount = paidOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
 
   const handlePrint = () => {
     window.print();
@@ -349,21 +357,23 @@ export default function BillModal({ order, onClose, onOrderMore }) {
           {isCombinedView && (
             <div
               style={{
-                background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
-                border: '1.5px solid #fecdd3',
+                background: unpaidOrders.length > 0 ? 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)' : '#f0fdf4',
+                border: `1.5px solid ${unpaidOrders.length > 0 ? '#fecdd3' : '#86efac'}`,
                 borderRadius: 16,
                 padding: '14px 16px',
                 textAlign: 'center',
               }}
             >
-              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#be123c', textTransform: 'uppercase' }}>
-                Combined Summary for Table #{tableNumber}
+              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: unpaidOrders.length > 0 ? '#be123c' : '#15803d', textTransform: 'uppercase' }}>
+                {unpaidOrders.length > 0 ? `Unpaid Bill Summary for Table #${tableNumber}` : `Table #${tableNumber} · All Bills Settled`}
               </div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#7f1d1d', marginTop: 2 }}>
-                {allActiveOrders.length} Orders Placed
+              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: unpaidOrders.length > 0 ? '#7f1d1d' : '#166534', marginTop: 2 }}>
+                {unpaidOrders.length > 0 ? `${unpaidOrders.length} Unpaid Order(s) · ₹${combinedTotal} Due` : '🎉 All Orders Paid & Completed'}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 4 }}>
-                All ongoing orders for your table are listed below.
+                {unpaidOrders.length > 0
+                  ? `Only unpaid orders are added to this total (₹${totalPaidAmount > 0 ? `${totalPaidAmount} already paid` : '0 paid'}).`
+                  : 'There are no pending payments for this table.'}
               </div>
             </div>
           )}
@@ -383,10 +393,10 @@ export default function BillModal({ order, onClose, onOrderMore }) {
           >
             <div>
               <div style={{ color: '#9ca3af', fontSize: '0.72rem', fontWeight: 600 }}>
-                {isCombinedView ? 'ACTIVE ORDERS' : 'ORDER NUMBER'}
+                {isCombinedView ? 'UNPAID ORDERS' : 'ORDER NUMBER'}
               </div>
               <div style={{ fontWeight: 800, color: '#1c1917' }}>
-                {isCombinedView ? `${allActiveOrders.length} Orders` : currentOrder.order_number}
+                {isCombinedView ? `${unpaidOrders.length} Unpaid (${allActiveOrders.length} Total)` : currentOrder.order_number}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -412,7 +422,7 @@ export default function BillModal({ order, onClose, onOrderMore }) {
           {/* Itemized Table */}
           <div>
             <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1c1917', marginBottom: 8 }}>
-              {isCombinedView ? `All Ordered Dishes (${combinedItems.length})` : `Order Items (${currentOrder.items?.length || 0})`}
+              {isCombinedView ? `Unpaid Dishes (${combinedItems.length})` : `Order Items (${currentOrder.items?.length || 0})`}
             </div>
             <div
               style={{
@@ -478,6 +488,14 @@ export default function BillModal({ order, onClose, onOrderMore }) {
                 ₹{isCombinedView ? combinedTax : currentOrder.tax}
               </span>
             </div>
+
+            {isCombinedView && paidOrders.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontSize: '0.8rem', background: '#f0fdf4', padding: '4px 8px', borderRadius: 6 }}>
+                <span>✓ Already Paid ({paidOrders.length} orders)</span>
+                <span style={{ fontWeight: 800 }}>- ₹{totalPaidAmount}</span>
+              </div>
+            )}
+
             <div
               style={{
                 display: 'flex',
@@ -490,7 +508,7 @@ export default function BillModal({ order, onClose, onOrderMore }) {
                 marginTop: 4,
               }}
             >
-              <span>{isCombinedView ? 'Combined Grand Total' : 'Grand Total'}</span>
+              <span>{isCombinedView ? 'Total Unpaid Bill' : 'Grand Total'}</span>
               <span style={{ color: '#e11d48' }}>
                 ₹{isCombinedView ? combinedTotal : currentOrder.total}
               </span>

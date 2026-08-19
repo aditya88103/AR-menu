@@ -60,6 +60,10 @@ export default function MenuPage() {
       .filter((o) => String(o?.table_number) === currentTable && o?.status !== 'completed' && o?.status !== 'cancelled');
   }, [activeOrders, tableNumber]);
 
+  const currentTableUnpaidTotal = useMemo(() => {
+    return currentTableActiveOrders.reduce((sum, o) => sum + (Number(o?.total) || 0), 0);
+  }, [currentTableActiveOrders]);
+
   const cartList = Array.isArray(items) ? items : [];
   const totalItems = cartList.reduce((sum, i) => sum + (Number(i?.quantity) || 0), 0);
   const subtotal = cartList.reduce((sum, i) => sum + (Number(i?.price) || 0) * (Number(i?.quantity) || 0), 0);
@@ -354,7 +358,7 @@ export default function MenuPage() {
             </div>
             <div>
               <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#be123c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                {currentTableActiveOrders.length === 1 ? '1 Active Order in Kitchen' : `${currentTableActiveOrders.length} Active Orders Tracked`}
+                {currentTableActiveOrders.length === 1 ? '1 Active Order in Kitchen' : `${currentTableActiveOrders.length} Active Orders`} · ₹{currentTableUnpaidTotal} Unpaid
               </div>
               <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1c1917', lineHeight: 1.2, marginTop: 2 }}>
                 Table #{tableNumber} · Tap to view live receipts & status
@@ -366,7 +370,7 @@ export default function MenuPage() {
             color: '#e11d48',
             fontWeight: 800,
             fontSize: '0.75rem',
-            padding: '5px 10px',
+            padding: '6px 12px',
             borderRadius: 99,
             border: '1px solid #fecdd3',
             display: 'flex',
@@ -374,7 +378,7 @@ export default function MenuPage() {
             gap: 4,
             flexShrink: 0,
           }}>
-            <span>View</span>
+            <span>₹{currentTableUnpaidTotal} Due</span>
             <span>➔</span>
           </div>
         </div>
