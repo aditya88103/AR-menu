@@ -15,7 +15,7 @@ export default function OrdersPage() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [selectedOrderForPrint, setSelectedOrderForPrint] = useState(null);
 
-  const prevOrderCountRef = useRef(getStoredOrders().length);
+  const knownOrderIdsRef = useRef(new Set(getStoredOrders().map((o) => o.id)));
   const isFirstLoadRef = useRef(true);
 
   // Request desktop notification permission on mount
@@ -29,21 +29,38 @@ export default function OrdersPage() {
 
   useEffect(() => {
     const unsubscribe = onOrdersChange((allOrders) => {
-      // If new orders arrived after initial load, play loud chime & show background notification!
-      if (!isFirstLoadRef.current && allOrders && allOrders.length > prevOrderCountRef.current && soundEnabled) {
-        const latest = allOrders[0];
-        notifyNewOrder(latest);
-        toast(`🔔 New Order #${latest?.order_number || ''} Received!`, {
-          icon: '🍔',
-          duration: 5000,
-          style: { background: '#7f1d1d', color: '#fff', fontWeight: 700 },
-        });
-      }
-      if (allOrders) {
-        prevOrderCountRef.current = allOrders.length;
+      if (!allOrders || !Array.isArray(allOrders)) return;
+
+      if (isFirstLoadRef.current) {
+        // Seed known order IDs on initial page load so it doesn't chime on page load
+        knownOrderIdsRef.current = new Set(allOrders.map((o) => o.id));
+        isFirstLoadRef.current = false;
         setOrders(allOrders);
+        setLoading(false);
+        return;
       }
-      isFirstLoadRef.current = false;
+
+      // Check if any brand new order ID arrived that we haven't seen in this session
+      const brandNewOrders = allOrders.filter((o) => !knownOrderIdsRef.current.has(o.id));
+
+      if (brandNewOrders.length > 0) {
+        // Update known IDs set
+        brandNewOrders.forEach((o) => knownOrderIdsRef.current.add(o.id));
+
+        if (soundEnabled) {
+          const latest = brandNewOrders[0];
+          notifyNewOrder(latest);
+          toast(`🔔 New Order #${latest?.order_number || ''} Received!`, {
+            icon: '🍔',
+            duration: 6000,
+            style: { background: '#7f1d1d', color: '#fff', fontWeight: 800, fontSize: '0.95rem' },
+          });
+        }
+      }
+
+      // Ensure all IDs are tracked
+      allOrders.forEach((o) => knownOrderIdsRef.current.add(o.id));
+      setOrders(allOrders);
       setLoading(false);
     });
 

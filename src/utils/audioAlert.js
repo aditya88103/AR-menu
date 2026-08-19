@@ -1,13 +1,81 @@
 /**
  * Restaurant Audio & Background Notification Manager
- * Ensures zero-lag loud sound alerts even when admin tab is minimized or in background.
+ * Dual-Engine sound playback (HTML5 Audio + Web Audio API) with Desktop Notifications
  */
 
 let audioCtx = null;
 let titleInterval = null;
+let cachedAudioElement = null;
 const ORIGINAL_TITLE = 'Biggies Admin';
 
-// Get or initialize singleton AudioContext
+// Pre-synthesized loud restaurant bell ding-dong WAV sound (Data URI)
+function createChimeWavUrl() {
+  try {
+    const sampleRate = 22050;
+    const duration = 1.0;
+    const numSamples = Math.floor(sampleRate * duration);
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
+
+    const writeString = (offset, string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    // RIFF Header
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // Mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, numSamples * 2, true);
+
+    // Bell chime synthesis (Ding-Dong harmonics)
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      // High Ding (1046.5 Hz)
+      const env1 = Math.exp(-t * 6);
+      const s1 = Math.sin(2 * Math.PI * 1046.5 * t) + 0.4 * Math.sin(2 * Math.PI * 2093 * t);
+      
+      // Lower Dong (784 Hz) starting at 0.15s
+      let s2 = 0;
+      if (t > 0.15) {
+        const t2 = t - 0.15;
+        const env2 = Math.exp(-t2 * 4);
+        s2 = Math.sin(2 * Math.PI * 784 * t2) + 0.5 * Math.sin(2 * Math.PI * 1568 * t2);
+        s2 *= env2;
+      }
+
+      const sample = Math.max(-1, Math.min(1, s1 * env1 * 0.7 + s2 * 0.65));
+      view.setInt16(44 + i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+    }
+
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    return null;
+  }
+}
+
+let chimeUrl = null;
+if (typeof window !== 'undefined') {
+  try {
+    chimeUrl = createChimeWavUrl();
+    if (chimeUrl) {
+      cachedAudioElement = new Audio(chimeUrl);
+      cachedAudioElement.volume = 1.0;
+    }
+  } catch (e) {}
+}
+
 export function getAudioContext() {
   if (typeof window === 'undefined') return null;
   const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
@@ -21,12 +89,19 @@ export function getAudioContext() {
   return audioCtx;
 }
 
-// Auto-unlock audio permissions on any interaction or visibility return
+// Global user interaction listener to unlock audio permanently
 if (typeof window !== 'undefined') {
   const unlockAudio = () => {
     const ctx = getAudioContext();
     if (ctx && ctx.state === 'suspended') {
       ctx.resume().catch(() => {});
+    }
+    if (cachedAudioElement) {
+      // Warm up HTML5 audio
+      cachedAudioElement.play().then(() => {
+        cachedAudioElement.pause();
+        cachedAudioElement.currentTime = 0;
+      }).catch(() => {});
     }
   };
 
@@ -34,7 +109,6 @@ if (typeof window !== 'undefined') {
   window.addEventListener('touchstart', unlockAudio, { passive: true });
   window.addEventListener('keydown', unlockAudio, { passive: true });
 
-  // Resume audio when switching back to tab
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       unlockAudio();
@@ -44,45 +118,58 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * Loud, crisp 4-chord service bell chime (Ding-Dong-Ding)
+ * Loud, crisp service bell chime
  */
 export function playRestaurantChime() {
+  let played = false;
+
+  // 1. Try HTML5 Audio (Bypasses background oscillator timer throttling)
+  try {
+    if (chimeUrl) {
+      const snd = new Audio(chimeUrl);
+      snd.volume = 1.0;
+      snd.play().then(() => {
+        played = true;
+      }).catch((err) => {
+        console.warn('HTML5 Audio note:', err);
+      });
+    }
+  } catch (e) {}
+
+  // 2. Web Audio API Oscillator synthesis fallback (multi-chord bell)
   try {
     const ctx = getAudioContext();
-    if (!ctx) return;
+    if (ctx) {
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
 
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
+      const now = ctx.currentTime;
+      const notes = [
+        { freq: 587.33, time: 0, dur: 0.4, gain: 0.5 },     // D5
+        { freq: 880, time: 0.12, dur: 0.5, gain: 0.55 },     // A5
+        { freq: 1174.66, time: 0.25, dur: 0.9, gain: 0.65 }, // D6
+      ];
+
+      notes.forEach(({ freq, time, dur, gain }) => {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + time);
+
+        gainNode.gain.setValueAtTime(gain, now + time);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + time + dur);
+
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        osc.start(now + time);
+        osc.stop(now + time + dur);
+      });
     }
-
-    const now = ctx.currentTime;
-
-    // Service bell chords: C5 (523Hz), E5 (659Hz), G5 (784Hz), High C6 (1046Hz)
-    const notes = [
-      { freq: 523.25, time: 0, dur: 0.45, gain: 0.4 },
-      { freq: 659.25, time: 0.14, dur: 0.55, gain: 0.45 },
-      { freq: 783.99, time: 0.28, dur: 0.65, gain: 0.5 },
-      { freq: 1046.5, time: 0.44, dur: 1.1, gain: 0.6 },
-    ];
-
-    notes.forEach(({ freq, time, dur, gain }) => {
-      const osc = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-
-      osc.type = 'triangle'; // Richer, louder bell tone
-      osc.frequency.setValueAtTime(freq, now + time);
-
-      gainNode.gain.setValueAtTime(gain, now + time);
-      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + time + dur);
-
-      osc.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      osc.start(now + time);
-      osc.stop(now + time + dur);
-    });
   } catch (err) {
-    console.warn('Audio chime notice:', err);
+    console.warn('Web Audio synthesis note:', err);
   }
 }
 
@@ -131,6 +218,8 @@ export function stopTitleAlert() {
  * Full notification suite when new order arrives
  */
 export function notifyNewOrder(order) {
+  console.log('🔊 FIRING ORDER SOUND & NOTIFICATION for order:', order);
+
   // 1. Play loud restaurant chime
   playRestaurantChime();
 
