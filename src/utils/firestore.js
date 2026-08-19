@@ -492,11 +492,25 @@ export async function deleteFile(fileURL) {
   } catch (err) {}
 }
 
+// Helper: Standard RFC4122 v4 UUID generator for 100% database compatibility
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try {
+      return crypto.randomUUID();
+    } catch (e) {}
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 // ── Orders Management (0ms Instant Placement & Realtime Updates) ─────────────
 export async function createOrder(orderData) {
   const orderNumber = `BIG-${Math.floor(1000 + Math.random() * 9000)}`;
   const newOrder = {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ord_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    id: generateUUID(),
     order_number: orderNumber,
     table_number: String(orderData.table_number || orderData.tableNumber || '1'),
     customer_name: orderData.customer_name || orderData.customerName || 'Guest',
@@ -511,14 +525,25 @@ export async function createOrder(orderData) {
     updated_at: new Date().toISOString(),
   };
 
-  // 1. Instant local persistence & broadcast
+  // 1. Instant local persistence & broadcast for 0ms lag
   const local = getStoredOrders();
   const updated = [newOrder, ...local];
   saveStoredOrders(updated);
 
-  // 2. Background sync to Supabase
-  if (!supabaseDisabled) {
-    withTimeout(supabase.from('orders').insert([newOrder]), 1200).catch(() => {});
+  // 2. Cloud Database Sync (Supabase)
+  try {
+    const insertPromise = supabase.from('orders').insert([newOrder]);
+    withTimeout(insertPromise, 3000).then(({ error }) => {
+      if (error) {
+        console.warn('Supabase order insert notice:', error.message || error);
+      } else {
+        console.log('✅ Order synced to cloud database:', newOrder.order_number);
+      }
+    }).catch((err) => {
+      console.warn('Cloud sync background error:', err);
+    });
+  } catch (err) {
+    console.warn('Order sync exception:', err);
   }
 
   return newOrder;
@@ -526,12 +551,11 @@ export async function createOrder(orderData) {
 
 export async function fetchOrders() {
   const local = getStoredOrders();
-  if (supabaseDisabled) return local;
 
   try {
     const fetchPromise = supabase.from('orders').select('*').order('created_at', { ascending: false });
-    const { data, error } = await withTimeout(fetchPromise, 800);
-    if (!error && data && data.length > 0) {
+    const { data, error } = await withTimeout(fetchPromise, 2500);
+    if (!error && Array.isArray(data) && data.length > 0) {
       const map = new Map();
       data.forEach((o) => map.set(o.id, o));
       local.forEach((o) => {
@@ -542,7 +566,7 @@ export async function fetchOrders() {
       return merged;
     }
   } catch (err) {
-    supabaseDisabled = true;
+    // Return local if network is temporarily slow
   }
   return local;
 }
@@ -554,12 +578,20 @@ export function onOrdersChange(callback) {
   const initial = getStoredOrders();
   callback(initial);
 
-  // 2. Background fetch
+  // 2. Initial fetch from cloud
   fetchOrders().then((orders) => {
     if (isSubscribed && orders) callback(orders);
   });
 
-  // 3. Broadcast listener
+  // 3. Regular polling every 3.5 seconds to guarantee cross-device sync even if websockets are blocked
+  const pollInterval = setInterval(() => {
+    if (!isSubscribed) return;
+    fetchOrders().then((orders) => {
+      if (isSubscribed && orders) callback(orders);
+    });
+  }, 3500);
+
+  // 4. Broadcast listener for same-device cross-tab updates
   const handleBroadcast = (e) => {
     if (isSubscribed && e.data && e.data.type === 'ORDERS_SYNC') {
       callback(e.data.orders);
@@ -574,23 +606,22 @@ export function onOrdersChange(callback) {
   };
   window.addEventListener('storage', handleStorage);
 
-  // 4. Supabase channel
+  // 5. Supabase Realtime channel
   let channel = null;
-  if (!supabaseDisabled) {
-    try {
-      channel = supabase
-        .channel(`orders_${Math.random().toString(36).slice(2, 7)}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
-          if (!isSubscribed) return;
-          const orders = await fetchOrders();
-          callback(orders);
-        })
-        .subscribe();
-    } catch (e) {}
-  }
+  try {
+    channel = supabase
+      .channel(`orders_realtime_${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
+        if (!isSubscribed) return;
+        const orders = await fetchOrders();
+        callback(orders);
+      })
+      .subscribe();
+  } catch (e) {}
 
   return () => {
     isSubscribed = false;
+    clearInterval(pollInterval);
     if (channel) {
       try { supabase.removeChannel(channel); } catch (e) {}
     }
@@ -617,8 +648,19 @@ export function onSingleOrderChange(orderId, callback) {
   };
   if (syncBroadcast) syncBroadcast.addEventListener('message', handleBroadcast);
 
+  // Poll for single order updates (e.g. status changes by admin)
+  const singlePoll = setInterval(() => {
+    if (!isSubscribed) return;
+    fetchOrders().then((all) => {
+      if (!isSubscribed) return;
+      const match = (all || []).find((o) => o.id === orderId);
+      if (match) callback(match);
+    });
+  }, 3500);
+
   return () => {
     isSubscribed = false;
+    clearInterval(singlePoll);
     if (syncBroadcast) syncBroadcast.removeEventListener('message', handleBroadcast);
   };
 }
@@ -629,9 +671,9 @@ export async function updateOrderStatus(orderId, status) {
   const updated = local.map((o) => (o.id === orderId ? { ...o, status, updated_at: updatedAt } : o));
   saveStoredOrders(updated);
 
-  if (!supabaseDisabled) {
-    withTimeout(supabase.from('orders').update({ status, updated_at: updatedAt }).eq('id', orderId), 1200).catch(() => {});
-  }
+  try {
+    withTimeout(supabase.from('orders').update({ status, updated_at: updatedAt }).eq('id', orderId), 2500).catch(() => {});
+  } catch (e) {}
 }
 
 export async function deleteOrder(orderId) {
@@ -639,9 +681,9 @@ export async function deleteOrder(orderId) {
   const updated = local.filter((o) => o.id !== orderId);
   saveStoredOrders(updated);
 
-  if (!supabaseDisabled) {
-    withTimeout(supabase.from('orders').delete().eq('id', orderId), 1200).catch(() => {});
-  }
+  try {
+    withTimeout(supabase.from('orders').delete().eq('id', orderId), 2500).catch(() => {});
+  } catch (e) {}
 }
 
 // ── Legacy stubs ─────────────────────────────────────────────────────────────

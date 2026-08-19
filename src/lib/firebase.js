@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const defaultUrl = 'https://placeholder-domain-restaurant.supabase.co';
-const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummyPlaceholderKey';
+const defaultUrl = 'https://ubgmqkxaminmvhvraatu.supabase.co';
+const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZ21xa3hhbWlubXZodnJhYXR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjIyNTUsImV4cCI6MjA5MjU5ODI1NX0.aQaTGsECMfN5GlC6iJdvjqBR8lfbZUJv8ph9obLu4qs';
 
 const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_URL.startsWith('http')) 
   ? import.meta.env.VITE_SUPABASE_URL 
