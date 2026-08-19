@@ -15,8 +15,23 @@ export const useCartStore = create(
       activeOrder: null,
       orderHistory: [],
 
-      // Set table number
-      setTableNumber: (tableNumber) => set({ tableNumber: String(tableNumber || '1') }),
+      // Set table number with strict table-level order isolation
+      setTableNumber: (newTable) => {
+        const tableStr = String(newTable || '1');
+        set((state) => {
+          if (state.tableNumber === tableStr) return state;
+          // Filter activeOrders so orders from a previous table do NOT leak into a new table QR scan!
+          const currentActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
+          const tableOrders = currentActive.filter(
+            (o) => String(o?.table_number) === tableStr && o.status !== 'completed' && o.status !== 'cancelled'
+          );
+          return {
+            tableNumber: tableStr,
+            activeOrders: tableOrders,
+            activeOrder: tableOrders[0] || null,
+          };
+        });
+      },
 
       // Set customer info
       setCustomerInfo: (info) =>
@@ -28,7 +43,13 @@ export const useCartStore = create(
       addActiveOrder: (order) => {
         if (!order) return;
         set((state) => {
-          const prevActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
+          const currentTable = String(state.tableNumber || '1');
+          const orderTable = String(order.table_number || currentTable);
+          
+          // Only keep active orders that belong to the current table
+          const prevActive = (Array.isArray(state.activeOrders) ? state.activeOrders : [])
+            .filter((o) => String(o?.table_number) === orderTable);
+          
           const filtered = prevActive.filter((o) => o?.id !== order.id);
           const updatedActive = [order, ...filtered];
 
@@ -58,23 +79,27 @@ export const useCartStore = create(
         });
       },
 
-      // Sync active orders with latest database/storage orders
+      // Sync active orders with latest database/storage orders (filtered by table)
       syncActiveOrders: (allOrders) => {
         if (!Array.isArray(allOrders) || allOrders.length === 0) return;
         set((state) => {
+          const currentTable = String(state.tableNumber || '1');
           const prevActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
           if (prevActive.length === 0 && !state.activeOrder) return state;
 
           const activeMap = new Map();
           prevActive.forEach((o) => {
-            if (o?.id) activeMap.set(o.id, o);
+            if (o?.id && String(o.table_number) === currentTable) {
+              activeMap.set(o.id, o);
+            }
           });
-          if (state.activeOrder?.id && !activeMap.has(state.activeOrder.id)) {
+
+          if (state.activeOrder?.id && String(state.activeOrder.table_number) === currentTable && !activeMap.has(state.activeOrder.id)) {
             activeMap.set(state.activeOrder.id, state.activeOrder);
           }
 
           allOrders.forEach((serverOrder) => {
-            if (serverOrder?.id && activeMap.has(serverOrder.id)) {
+            if (serverOrder?.id && String(serverOrder.table_number) === currentTable && activeMap.has(serverOrder.id)) {
               activeMap.set(serverOrder.id, { ...activeMap.get(serverOrder.id), ...serverOrder });
             }
           });
@@ -87,6 +112,27 @@ export const useCartStore = create(
               : (syncedList[0] || null),
           };
         });
+      },
+
+      // Load active orders by customer phone number or name
+      loadOrdersByCustomer: (query, allOrders) => {
+        if (!query || !Array.isArray(allOrders)) return [];
+        const q = String(query).trim().toLowerCase();
+        const matches = allOrders.filter((o) => {
+          const nameMatch = (o.customer_name || '').toLowerCase().includes(q);
+          const phoneMatch = (o.customer_phone || '').includes(q);
+          const isActive = o.status !== 'completed' && o.status !== 'cancelled';
+          return (nameMatch || phoneMatch) && isActive;
+        });
+
+        if (matches.length > 0) {
+          set((state) => ({
+            activeOrders: matches,
+            activeOrder: matches[0],
+            tableNumber: String(matches[0].table_number || state.tableNumber),
+          }));
+        }
+        return matches;
       },
 
       // Set/Select current active order

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { onAvailableDishesChange, onCategoriesChange, onOrdersChange, getStoredDishes, getStoredCategories } from '../../utils/firestore';
+import { onAvailableDishesChange, onCategoriesChange, onOrdersChange, fetchOrders, getStoredDishes, getStoredCategories } from '../../utils/firestore';
 import DishCard from '../../components/menu/DishCard';
 import CartDrawer from '../../components/menu/CartDrawer';
 import BillModal from '../../components/menu/BillModal';
 import { useCartStore } from '../../store/cartStore';
+import toast from 'react-hot-toast';
 
 function SkeletonCard() {
   return (
@@ -36,9 +37,12 @@ export default function MenuPage() {
   const [loading, setLoading]       = useState(false); // Cache ready immediately
   const [vegOnly, setVegOnly]       = useState(false);
 
-  // Cart & Bill Modal state
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isBillOpen, setIsBillOpen] = useState(false);
+  // Cart, Bill Modal & Order Lookup Modal state
+  const [isCartOpen, setIsCartOpen]     = useState(false);
+  const [isBillOpen, setIsBillOpen]     = useState(false);
+  const [isLookupOpen, setIsLookupOpen] = useState(false);
+  const [lookupQuery, setLookupQuery]   = useState('');
+  const [isSearching, setIsSearching]   = useState(false);
 
   // Store bindings
   const items = useCartStore((state) => state.items) || [];
@@ -47,6 +51,14 @@ export default function MenuPage() {
   const activeOrders = useCartStore((state) => state.activeOrders) || [];
   const activeOrder = useCartStore((state) => state.activeOrder);
   const syncActiveOrders = useCartStore((state) => state.syncActiveOrders);
+  const loadOrdersByCustomer = useCartStore((state) => state.loadOrdersByCustomer);
+
+  // Strictly filter active orders for the CURRENT table only (excluding finished/paid orders)
+  const currentTableActiveOrders = useMemo(() => {
+    const currentTable = String(tableNumber || '1');
+    return (Array.isArray(activeOrders) ? activeOrders : [])
+      .filter((o) => String(o?.table_number) === currentTable && o?.status !== 'completed' && o?.status !== 'cancelled');
+  }, [activeOrders, tableNumber]);
 
   const cartList = Array.isArray(items) ? items : [];
   const totalItems = cartList.reduce((sum, i) => sum + (Number(i?.quantity) || 0), 0);
@@ -254,44 +266,58 @@ export default function MenuPage() {
             <span>{vegOnly ? 'Veg Only' : 'Veg + Non-Veg'}</span>
           </button>
 
-          {/* Active Orders / Bill Shortcut button */}
-          {activeOrders.length > 0 && (
-            <button
-              onClick={() => setIsBillOpen(true)}
-              type="button"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px', borderRadius: 99,
-                background: '#fff', color: '#be123c',
-                border: 'none', fontWeight: 800, fontSize: '0.75rem',
-                cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              }}
-            >
-              <span>🧾</span>
-              <span>{activeOrders.length === 1 ? 'Track Order' : `${activeOrders.length} Active Orders`}</span>
-              <span style={{
-                background: '#e11d48',
-                color: '#fff',
-                fontSize: '0.65rem',
-                fontWeight: 900,
-                padding: '1px 6px',
-                borderRadius: 99,
-              }}>
-                {activeOrders.length}
-              </span>
-            </button>
-          )}
-
-          {!loading && activeOrders.length === 0 && (
-             <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', fontWeight: 600 }}>
-               {visibleDishes.length} Dishes
-             </div>
-          )}
+          {/* Active Orders / Bill Shortcut button (strictly for this table) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {currentTableActiveOrders.length > 0 ? (
+              <button
+                onClick={() => setIsBillOpen(true)}
+                type="button"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '6px 14px', borderRadius: 99,
+                  background: '#fff', color: '#be123c',
+                  border: 'none', fontWeight: 800, fontSize: '0.75rem',
+                  cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                }}
+              >
+                <span>🧾</span>
+                <span>{currentTableActiveOrders.length === 1 ? 'Track Order' : `${currentTableActiveOrders.length} Active Orders`}</span>
+                <span style={{
+                  background: '#e11d48',
+                  color: '#fff',
+                  fontSize: '0.65rem',
+                  fontWeight: 900,
+                  padding: '1px 6px',
+                  borderRadius: 99,
+                }}>
+                  {currentTableActiveOrders.length}
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsLookupOpen(true)}
+                type="button"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '6px 12px', borderRadius: 99,
+                  background: 'rgba(255,255,255,0.18)',
+                  backdropFilter: 'blur(8px)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  fontWeight: 700, fontSize: '0.72rem',
+                  cursor: 'pointer',
+                }}
+              >
+                <span>🔍</span>
+                <span>Track By Phone</span>
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* ──── ACTIVE ORDERS LIVE TRACKER BANNER ──── */}
-      {activeOrders.length > 0 && (
+      {/* ──── ACTIVE ORDERS LIVE TRACKER BANNER (TABLE ISOLATED) ──── */}
+      {currentTableActiveOrders.length > 0 && (
         <div
           onClick={() => setIsBillOpen(true)}
           style={{
@@ -328,7 +354,7 @@ export default function MenuPage() {
             </div>
             <div>
               <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#be123c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                {activeOrders.length === 1 ? '1 Active Order in Kitchen' : `${activeOrders.length} Active Orders Tracked`}
+                {currentTableActiveOrders.length === 1 ? '1 Active Order in Kitchen' : `${currentTableActiveOrders.length} Active Orders Tracked`}
               </div>
               <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1c1917', lineHeight: 1.2, marginTop: 2 }}>
                 Table #{tableNumber} · Tap to view live receipts & status
@@ -544,12 +570,157 @@ export default function MenuPage() {
         }}
       />
 
-      {isBillOpen && (activeOrders.length > 0 || activeOrder) && (
+      {isBillOpen && (currentTableActiveOrders.length > 0 || activeOrder || activeOrders.length > 0) && (
         <BillModal
-          order={activeOrder || activeOrders[0]}
+          order={activeOrder || currentTableActiveOrders[0] || activeOrders[0]}
           onClose={() => setIsBillOpen(false)}
           onOrderMore={() => setIsBillOpen(false)}
         />
+      )}
+
+      {/* ──── CUSTOMER ORDER LOOKUP MODAL (BY PHONE / NAME) ──── */}
+      {isLookupOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 999999,
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            animation: 'fadeIn 0.2s ease',
+          }}
+          onClick={() => setIsLookupOpen(false)}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 24,
+              padding: 24,
+              maxWidth: 420,
+              width: '100%',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              animation: 'bounceIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 12,
+                  background: '#fff1f2', color: '#e11d48',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18,
+                }}>
+                  🔍
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1c1917' }}>
+                    Track Active Orders
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: '#6b7280' }}>
+                    Find active orders using phone number or name
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsLookupOpen(false)}
+                type="button"
+                style={{
+                  background: '#f3f4f6', border: 'none', borderRadius: '50%',
+                  width: 30, height: 30, cursor: 'pointer', fontWeight: 800,
+                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >✕</button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!lookupQuery.trim()) {
+                  toast.error('Please enter your phone number or name');
+                  return;
+                }
+                setIsSearching(true);
+                const toastId = toast.loading('Searching active orders...');
+                try {
+                  const all = await fetchOrders();
+                  const found = loadOrdersByCustomer(lookupQuery, all);
+                  if (found && found.length > 0) {
+                    toast.success(`Found ${found.length} active order(s)! 🎉`, { id: toastId });
+                    setIsLookupOpen(false);
+                    setIsBillOpen(true);
+                  } else {
+                    toast.error('No ongoing orders found for this phone number or name.', { id: toastId });
+                  }
+                } catch (err) {
+                  toast.error('Failed to lookup orders. Please try again.', { id: toastId });
+                } finally {
+                  setIsSearching(false);
+                }
+              }}
+            >
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#374151', marginBottom: 6 }}>
+                  Customer Phone Number / Name:
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 9876543210 or Aditya"
+                  value={lookupQuery}
+                  onChange={(e) => setLookupQuery(e.target.value)}
+                  className="admin-input"
+                  style={{ fontSize: '0.9rem', padding: '12px 14px', borderRadius: 12 }}
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="submit"
+                  disabled={isSearching}
+                  style={{
+                    flex: 1,
+                    padding: '13px',
+                    borderRadius: 12,
+                    background: 'linear-gradient(135deg,#e11d48,#be123c)',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: '0.88rem',
+                    cursor: isSearching ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(225,29,72,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                  }}
+                >
+                  {isSearching ? 'Searching...' : '🔍 Find My Orders'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLookupOpen(false)}
+                  style={{
+                    padding: '13px 18px',
+                    borderRadius: 12,
+                    background: '#f3f4f6',
+                    color: '#374151',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* ──── FOOTER ──── */}

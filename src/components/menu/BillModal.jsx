@@ -9,14 +9,16 @@ export default function BillModal({ order, onClose, onOrderMore }) {
   const updateActiveOrder = useCartStore((state) => state.updateActiveOrder);
   const tableNumber = useCartStore((state) => state.tableNumber) || '1';
 
-  // Merge provided order with store active orders
+  // Merge provided order with store active orders (STRICTLY for current table)
   const allActiveOrders = React.useMemo(() => {
-    const list = Array.isArray(storeActiveOrders) ? [...storeActiveOrders] : [];
-    if (order && !list.find((o) => o?.id === order.id)) {
+    const currentTable = String(tableNumber || '1');
+    const list = (Array.isArray(storeActiveOrders) ? storeActiveOrders : [])
+      .filter((o) => String(o?.table_number) === currentTable);
+    if (order && String(order.table_number) === currentTable && !list.find((o) => o?.id === order.id)) {
       list.unshift(order);
     }
     return list;
-  }, [storeActiveOrders, order]);
+  }, [storeActiveOrders, order, tableNumber]);
 
   const [selectedOrderId, setSelectedOrderId] = useState(() => {
     return order?.id || allActiveOrders[0]?.id || 'combined';
@@ -575,6 +577,33 @@ export default function BillModal({ order, onClose, onOrderMore }) {
               <span>💬</span> Share WhatsApp
             </button>
           </div>
+
+          {/* Clear Completed/Paid Orders Button */}
+          {currentOrder?.status === 'completed' && (
+            <button
+              onClick={() => {
+                removeActiveOrder(currentOrder.id);
+                toast.success('Paid order removed from table view! ✨');
+                if (allActiveOrders.length <= 1) {
+                  onClose();
+                }
+              }}
+              type="button"
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: 12,
+                background: '#f0fdf4',
+                color: '#15803d',
+                border: '1.5px solid #86efac',
+                fontWeight: 800,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+              }}
+            >
+              ✓ Clear Paid Order ({currentOrder.order_number})
+            </button>
+          )}
 
           <button
             onClick={() => {
