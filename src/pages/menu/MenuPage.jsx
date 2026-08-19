@@ -40,6 +40,7 @@ export default function MenuPage() {
   // Cart, Bill Modal & Order Lookup Modal state
   const [isCartOpen, setIsCartOpen]     = useState(false);
   const [isBillOpen, setIsBillOpen]     = useState(false);
+  const [selectedModalOrder, setSelectedModalOrder] = useState(null);
   const [isLookupOpen, setIsLookupOpen] = useState(false);
   const [lookupQuery, setLookupQuery]   = useState('');
   const [isSearching, setIsSearching]   = useState(false);
@@ -583,11 +584,17 @@ export default function MenuPage() {
         }}
       />
 
-      {isBillOpen && (currentTableActiveOrders.length > 0 || activeOrder || activeOrders.length > 0) && (
+      {isBillOpen && (selectedModalOrder || currentTableActiveOrders.length > 0 || activeOrder || activeOrders.length > 0) && (
         <BillModal
-          order={activeOrder || currentTableActiveOrders[0] || activeOrders[0]}
-          onClose={() => setIsBillOpen(false)}
-          onOrderMore={() => setIsBillOpen(false)}
+          order={selectedModalOrder || activeOrder || currentTableActiveOrders[0] || activeOrders[0]}
+          onClose={() => {
+            setIsBillOpen(false);
+            setSelectedModalOrder(null);
+          }}
+          onOrderMore={() => {
+            setIsBillOpen(false);
+            setSelectedModalOrder(null);
+          }}
         />
       )}
 
@@ -783,8 +790,7 @@ export default function MenuPage() {
                         <div
                           key={ord.id}
                           onClick={() => {
-                            addActiveOrder(ord);
-                            setActiveOrder(ord);
+                            setSelectedModalOrder(ord);
                             setIsLookupOpen(false);
                             setIsBillOpen(true);
                           }}

@@ -9,26 +9,32 @@ export default function BillModal({ order, onClose, onOrderMore }) {
   const updateActiveOrder = useCartStore((state) => state.updateActiveOrder);
   const tableNumber = useCartStore((state) => state.tableNumber) || '1';
 
-  // Merge provided order with store active orders (STRICTLY for current table)
+  // Merge provided order with store active orders
   const allActiveOrders = React.useMemo(() => {
-    const currentTable = String(tableNumber || '1');
-    const list = (Array.isArray(storeActiveOrders) ? storeActiveOrders : [])
-      .filter((o) => String(o?.table_number) === currentTable);
-    if (order && String(order.table_number) === currentTable && !list.find((o) => o?.id === order.id)) {
+    const list = Array.isArray(storeActiveOrders) ? [...storeActiveOrders] : [];
+    if (order?.id && !list.find((o) => o?.id === order.id)) {
       list.unshift(order);
     }
     return list;
-  }, [storeActiveOrders, order, tableNumber]);
+  }, [storeActiveOrders, order]);
 
   const [selectedOrderId, setSelectedOrderId] = useState(() => {
     return order?.id || allActiveOrders[0]?.id || 'combined';
   });
 
+  // Sync selected order when order prop changes
+  useEffect(() => {
+    if (order?.id) {
+      setSelectedOrderId(order.id);
+    }
+  }, [order?.id]);
+
   const printRef = useRef(null);
 
   // Sync selected order if valid
-  const currentOrder = allActiveOrders.find((o) => o.id === selectedOrderId) || allActiveOrders[0];
+  const currentOrder = allActiveOrders.find((o) => o?.id === selectedOrderId) || order || allActiveOrders[0];
   const isCombinedView = selectedOrderId === 'combined' && allActiveOrders.length > 1;
+  const effectiveTableNumber = currentOrder?.table_number || order?.table_number || tableNumber || '1';
 
   // Real-time live status updates for all active orders
   useEffect(() => {
@@ -48,7 +54,7 @@ export default function BillModal({ order, onClose, onOrderMore }) {
     };
   }, [allActiveOrders.map((o) => o?.id).join(',')]);
 
-  if (allActiveOrders.length === 0 && !currentOrder) return null;
+  if (!currentOrder && allActiveOrders.length === 0) return null;
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -159,7 +165,7 @@ export default function BillModal({ order, onClose, onOrderMore }) {
             Biggies Restaurant
           </h1>
           <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
-            Food Stop · Table #{tableNumber}
+            Food Stop · Table #{effectiveTableNumber}
           </div>
           <div
             style={{
