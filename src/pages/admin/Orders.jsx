@@ -1,46 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { onOrdersChange, updateOrderStatus, deleteOrder, getStoredOrders } from '../../utils/firestore';
+import { notifyNewOrder, playRestaurantChime, requestNotificationPermission, stopTitleAlert } from '../../utils/audioAlert';
 import toast from 'react-hot-toast';
-
-// Web Audio API chime for zero-dependency instant sound alerts
-function playOrderChime() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    if (ctx.state === 'suspended') {
-      ctx.resume();
-    }
-    const now = ctx.currentTime;
-    
-    // First chime note (E5)
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(659.25, now);
-    gain1.gain.setValueAtTime(0.25, now);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.4);
-
-    // Second chime note (A5)
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(880, now + 0.15);
-    gain2.gain.setValueAtTime(0.3, now + 0.15);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.start(now + 0.15);
-    osc2.stop(now + 0.7);
-  } catch (e) {
-    console.warn('Audio chime warning:', e);
-  }
-}
 
 export default function OrdersPage() {
   // Instant 0ms synchronous load
@@ -56,12 +18,26 @@ export default function OrdersPage() {
   const prevOrderCountRef = useRef(getStoredOrders().length);
   const isFirstLoadRef = useRef(true);
 
+  // Request desktop notification permission on mount
+  useEffect(() => {
+    requestNotificationPermission();
+
+    const handleFocus = () => stopTitleAlert();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onOrdersChange((allOrders) => {
-      // If new orders arrived after initial load, play chime!
+      // If new orders arrived after initial load, play loud chime & show background notification!
       if (!isFirstLoadRef.current && allOrders && allOrders.length > prevOrderCountRef.current && soundEnabled) {
-        playOrderChime();
-        toast('🔔 New Order Received!', { icon: '🍔', style: { background: '#7f1d1d', color: '#fff' } });
+        const latest = allOrders[0];
+        notifyNewOrder(latest);
+        toast(`🔔 New Order #${latest?.order_number || ''} Received!`, {
+          icon: '🍔',
+          duration: 5000,
+          style: { background: '#7f1d1d', color: '#fff', fontWeight: 700 },
+        });
       }
       if (allOrders) {
         prevOrderCountRef.current = allOrders.length;
@@ -356,29 +332,63 @@ export default function OrdersPage() {
               style={{ width: 220, fontSize: '0.85rem', padding: '8px 12px' }}
             />
 
-            <button
-              onClick={() => {
-                setSoundEnabled(!soundEnabled);
-                if (!soundEnabled) playOrderChime();
-              }}
-              type="button"
-              title={soundEnabled ? 'Order Alert Chime Enabled' : 'Order Alert Chime Muted'}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 10,
-                background: soundEnabled ? '#dcfce7' : '#f3f4f6',
-                border: soundEnabled ? '1.5px solid #86efac' : '1px solid #d1d5db',
-                color: soundEnabled ? '#15803d' : '#6b7280',
-                fontWeight: 700,
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <span>{soundEnabled ? '🔔 Sound ON' : '🔕 Muted'}</span>
-            </button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button
+                onClick={() => {
+                  const nextState = !soundEnabled;
+                  setSoundEnabled(nextState);
+                  if (nextState) {
+                    playRestaurantChime();
+                    requestNotificationPermission();
+                    toast.success('Loud sound alerts & background notifications enabled! 🔔');
+                  }
+                }}
+                type="button"
+                title={soundEnabled ? 'Order Alert Chime Enabled' : 'Order Alert Chime Muted'}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  background: soundEnabled ? '#dcfce7' : '#f3f4f6',
+                  border: soundEnabled ? '1.5px solid #86efac' : '1px solid #d1d5db',
+                  color: soundEnabled ? '#15803d' : '#6b7280',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>{soundEnabled ? '🔔 Sound ON' : '🔕 Muted'}</span>
+              </button>
+
+              {soundEnabled && (
+                <button
+                  onClick={() => {
+                    playRestaurantChime();
+                    toast('🔊 Playing test restaurant bell chime...', { duration: 2000 });
+                  }}
+                  type="button"
+                  title="Test Restaurant Sound Alert"
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    background: '#fff',
+                    border: '1px solid #d1d5db',
+                    color: '#374151',
+                    fontWeight: 700,
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <span>🔊</span>
+                  <span>Test</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
