@@ -1,6 +1,7 @@
 /**
  * Restaurant Audio & Background Notification Manager
- * 3-Tier Multi-Layer Sound Engine (HTML5 Audio Asset + Web Audio Synthesizer + Push Notifications)
+ * Strictly isolated to Admin Panel (/admin/*) only.
+ * NEVER plays on customer menu pages!
  */
 
 let audioCtx = null;
@@ -9,9 +10,17 @@ let singletonAudio = null;
 const ORIGINAL_TITLE = 'Biggies Admin';
 const CHIME_SRC = '/sounds/order_chime.wav';
 
+// Check if current browser view is in the Admin Panel
+export function isAdminRoute() {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname || '';
+  const hash = window.location.hash || '';
+  return path.startsWith('/admin') || hash.includes('/admin');
+}
+
 // Get or initialize singleton Audio element
 function getChimeAudio() {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined' || !isAdminRoute()) return null;
   if (!singletonAudio) {
     singletonAudio = new Audio(CHIME_SRC);
     singletonAudio.volume = 1.0;
@@ -21,7 +30,7 @@ function getChimeAudio() {
 }
 
 export function getAudioContext() {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined' || !isAdminRoute()) return null;
   const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtxClass) return null;
   if (!audioCtx) {
@@ -33,16 +42,15 @@ export function getAudioContext() {
   return audioCtx;
 }
 
-// Auto-unlock audio permissions on any user interaction anywhere on the screen
+// Auto-unlock audio permissions on user interaction ONLY on Admin routes
 if (typeof window !== 'undefined') {
   const unlockAudio = () => {
-    // 1. Unlock HTML5 Audio
+    if (!isAdminRoute()) return;
+
+    // 1. Prime HTML5 Audio buffer without playing audible sound
     const snd = getChimeAudio();
-    if (snd) {
-      snd.play().then(() => {
-        snd.pause();
-        snd.currentTime = 0;
-      }).catch(() => {});
+    if (snd && snd.readyState === 0) {
+      snd.load();
     }
 
     // 2. Unlock Web Audio Context
@@ -57,7 +65,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('keydown', unlockAudio, { passive: true });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && isAdminRoute()) {
       unlockAudio();
       stopTitleAlert();
     }
@@ -66,28 +74,25 @@ if (typeof window !== 'undefined') {
 
 /**
  * Play crystal-clear 4-note ascending restaurant chime
+ * STRICTLY restricted to Admin pages.
  */
 export function playRestaurantChime() {
-  let audioPlayed = false;
+  // Never play on customer menu / tracking pages
+  if (!isAdminRoute()) return;
 
-  // 1. Primary Engine: Direct HTML5 Audio Element (Works in background tabs)
+  // 1. Primary Engine: Direct HTML5 Audio Element
   try {
     const snd = getChimeAudio();
     if (snd) {
       snd.currentTime = 0;
       snd.volume = 1.0;
-      const playPromise = snd.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          audioPlayed = true;
-        }).catch((err) => {
-          console.warn('HTML5 Audio play warning:', err);
-        });
-      }
+      snd.play().catch((err) => {
+        console.warn('HTML5 Audio play warning:', err);
+      });
     }
   } catch (e) {}
 
-  // 2. Secondary Engine: Web Audio API Oscillator synthesis (Zero-network fallback)
+  // 2. Secondary Engine: Web Audio API Oscillator synthesis fallback
   try {
     const ctx = getAudioContext();
     if (ctx) {
@@ -127,10 +132,10 @@ export function playRestaurantChime() {
 }
 
 /**
- * Request OS Desktop notification permission
+ * Request OS Desktop notification permission (Admin only)
  */
 export function requestNotificationPermission() {
-  if (typeof window !== 'undefined' && 'Notification' in window) {
+  if (typeof window !== 'undefined' && isAdminRoute() && 'Notification' in window) {
     if (Notification.permission === 'default') {
       Notification.requestPermission();
     }
@@ -138,10 +143,10 @@ export function requestNotificationPermission() {
 }
 
 /**
- * Flashes browser tab title if tab is inactive/minimized
+ * Flashes browser tab title if tab is inactive/minimized (Admin only)
  */
 export function startTitleAlert(orderInfo) {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined' || !isAdminRoute()) return;
   stopTitleAlert();
 
   let toggle = false;
@@ -158,16 +163,18 @@ export function stopTitleAlert() {
     clearInterval(titleInterval);
     titleInterval = null;
   }
-  if (typeof document !== 'undefined') {
+  if (typeof document !== 'undefined' && isAdminRoute()) {
     document.title = ORIGINAL_TITLE;
   }
 }
 
 /**
- * Full notification suite when new order arrives
+ * Full notification suite when new order arrives (Admin only)
  */
 export function notifyNewOrder(order) {
-  console.log('🔔 [SOUND ALERT TRIGGERED] New Order:', order?.order_number);
+  if (!isAdminRoute()) return;
+
+  console.log('🔔 [ADMIN SOUND ALERT] New Order:', order?.order_number);
 
   // 1. Play loud chime
   playRestaurantChime();
