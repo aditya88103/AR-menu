@@ -77,44 +77,6 @@ export default function BillModal({ order, onClose, onOrderMore }) {
     window.print();
   };
 
-  const handleWhatsAppShare = () => {
-    const targetOrder = isCombinedView ? null : currentOrder;
-
-    let message = '';
-    if (targetOrder) {
-      const itemsList = (targetOrder.items || [])
-        .map((i) => `• ${i.name} (x${i.quantity}) - ₹${i.price * i.quantity}`)
-        .join('\n');
-
-      message = `🍔 *BIGGIES RESTAURANT - ORDER RECEIPT*\n` +
-        `*Order #:* ${targetOrder.order_number}\n` +
-        `*Table #:* Table ${targetOrder.table_number}\n` +
-        `*Customer:* ${targetOrder.customer_name}\n` +
-        `*Status:* ${statusInfo.label}\n\n` +
-        `*Items Ordered:*\n${itemsList}\n\n` +
-        `*Subtotal:* ₹${targetOrder.subtotal}\n` +
-        `*GST (5%):* ₹${targetOrder.tax}\n` +
-        `*Grand Total:* ₹${targetOrder.total}\n\n` +
-        `Thank you for dining with us! ❤️`;
-    } else {
-      const allItemsList = combinedItems
-        .map((i) => `• ${i.name} (x${i.quantity}) - ₹${i.price * i.quantity}`)
-        .join('\n');
-
-      message = `🍔 *BIGGIES RESTAURANT - COMBINED TABLE BILL*\n` +
-        `*Table #:* Table ${tableNumber}\n` +
-        `*Active Orders:* ${allActiveOrders.length} Orders\n\n` +
-        `*All Items Ordered:*\n${allItemsList}\n\n` +
-        `*Combined Subtotal:* ₹${combinedSubtotal}\n` +
-        `*Total GST:* ₹${combinedTax}\n` +
-        `*Combined Grand Total:* ₹${combinedTotal}\n\n` +
-        `Thank you for dining with us! ❤️`;
-    }
-
-    const encoded = encodeURIComponent(message);
-    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
-  };
-
   return (
     <div
       style={{
@@ -553,54 +515,6 @@ export default function BillModal({ order, onClose, onOrderMore }) {
             gap: 10,
           }}
         >
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={handlePrint}
-              type="button"
-              style={{
-                flex: 1,
-                padding: '12px',
-                borderRadius: 12,
-                background: '#fff',
-                border: '1.5px solid #d1d5db',
-                color: '#374151',
-                fontWeight: 800,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-              }}
-            >
-              <span>🖨️</span> Print / Save Bill
-            </button>
-
-            <button
-              onClick={handleWhatsAppShare}
-              type="button"
-              style={{
-                flex: 1,
-                padding: '12px',
-                borderRadius: 12,
-                background: '#25d366',
-                border: 'none',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)',
-              }}
-            >
-              <span>💬</span> Share WhatsApp
-            </button>
-          </div>
-
           {/* Clear Completed/Paid Orders Button */}
           {currentOrder?.status === 'completed' && (
             <button
@@ -628,27 +542,56 @@ export default function BillModal({ order, onClose, onOrderMore }) {
             </button>
           )}
 
-          <button
-            onClick={() => {
-              onClose();
-              if (onOrderMore) onOrderMore();
-            }}
-            type="button"
-            style={{
-              width: '100%',
-              padding: '14px',
-              borderRadius: 12,
-              background: 'linear-gradient(135deg, #e11d48, #be123c)',
-              color: '#fff',
-              border: 'none',
-              fontWeight: 800,
-              fontSize: '0.92rem',
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(225,29,72,0.3)',
-            }}
-          >
-            ➕ Order More Dishes
-          </button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={handlePrint}
+              type="button"
+              style={{
+                flex: 1,
+                padding: '13px',
+                borderRadius: 12,
+                background: '#fff',
+                border: '1.5px solid #d1d5db',
+                color: '#374151',
+                fontWeight: 800,
+                fontSize: '0.88rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+              }}
+            >
+              <span>🖨️</span> Print / Save Bill
+            </button>
+
+            <button
+              onClick={() => {
+                onClose();
+                if (onOrderMore) onOrderMore();
+              }}
+              type="button"
+              style={{
+                flex: 1.2,
+                padding: '13px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, #e11d48, #be123c)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 800,
+                fontSize: '0.88rem',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(225,29,72,0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+              }}
+            >
+              <span>➕</span> Order More
+            </button>
+          </div>
         </div>
       </div>
 
