@@ -96,22 +96,26 @@ export default function MenuPage() {
     };
   }, []);
 
-  // ── Memoized Grouped Dishes for ultra fast rendering ───────────
-  const grouped = useMemo(() => {
-    const visibleDishes = vegOnly
-      ? dishes.filter(d => (d.isVeg !== undefined ? d.isVeg : d.isveg) === true)
-      : dishes;
+  // ── Memoized Visible & Grouped Dishes for ultra fast rendering ───
+  const visibleDishes = useMemo(() => {
+    const list = Array.isArray(dishes) ? dishes : [];
+    return vegOnly
+      ? list.filter(d => (d.isVeg !== undefined ? d.isVeg : d.isveg) === true)
+      : list;
+  }, [dishes, vegOnly]);
 
-    const list = categories
+  const grouped = useMemo(() => {
+    const cats = Array.isArray(categories) ? categories : [];
+    const list = cats
       .map(cat => ({ category: cat.name, dishes: visibleDishes.filter(d => d.category === cat.name) }))
       .filter(g => g.dishes.length > 0);
 
-    const listed = new Set(categories.map(c => c.name));
+    const listed = new Set(cats.map(c => c.name));
     const others = visibleDishes.filter(d => !listed.has(d.category));
     if (others.length) list.push({ category: 'Other', dishes: others });
 
     return list;
-  }, [categories, dishes, vegOnly]);
+  }, [categories, visibleDishes]);
 
   // ── IntersectionObserver ─────────────────────────────────────
   useEffect(() => {
