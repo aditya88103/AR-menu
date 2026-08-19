@@ -19,11 +19,10 @@ export const useCartStore = create(
       setTableNumber: (newTable) => {
         const tableStr = String(newTable || '1');
         set((state) => {
-          if (state.tableNumber === tableStr) return state;
-          // Filter activeOrders so orders from a previous table do NOT leak into a new table QR scan!
+          // ALWAYS filter activeOrders so orders from other tables and completed/paid orders never leak!
           const currentActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
           const tableOrders = currentActive.filter(
-            (o) => String(o?.table_number) === tableStr && o.status !== 'completed' && o.status !== 'cancelled'
+            (o) => String(o?.table_number) === tableStr && o?.status !== 'completed' && o?.status !== 'cancelled'
           );
           return {
             tableNumber: tableStr,
@@ -46,9 +45,9 @@ export const useCartStore = create(
           const currentTable = String(state.tableNumber || '1');
           const orderTable = String(order.table_number || currentTable);
           
-          // Only keep active orders that belong to the current table
+          // Only keep active orders that belong strictly to the current table
           const prevActive = (Array.isArray(state.activeOrders) ? state.activeOrders : [])
-            .filter((o) => String(o?.table_number) === orderTable);
+            .filter((o) => String(o?.table_number) === orderTable && o?.status !== 'completed' && o?.status !== 'cancelled');
           
           const filtered = prevActive.filter((o) => o?.id !== order.id);
           const updatedActive = [order, ...filtered];
@@ -69,6 +68,15 @@ export const useCartStore = create(
         if (!updatedOrder?.id) return;
         set((state) => {
           const prevActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
+          // If order is completed/paid or cancelled, remove it from activeOrders
+          if (updatedOrder.status === 'completed' || updatedOrder.status === 'cancelled') {
+            const filtered = prevActive.filter((o) => o.id !== updatedOrder.id);
+            return {
+              activeOrders: filtered,
+              activeOrder: state.activeOrder?.id === updatedOrder.id ? (filtered[0] || null) : state.activeOrder,
+            };
+          }
+
           const updatedActive = prevActive.map((o) =>
             o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o
           );
@@ -79,37 +87,28 @@ export const useCartStore = create(
         });
       },
 
-      // Sync active orders with latest database/storage orders (filtered by table)
+      // Sync active orders with latest database/storage orders (filtered strictly by table & active status)
       syncActiveOrders: (allOrders) => {
-        if (!Array.isArray(allOrders) || allOrders.length === 0) return;
+        if (!Array.isArray(allOrders)) return;
         set((state) => {
           const currentTable = String(state.tableNumber || '1');
           const prevActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
           if (prevActive.length === 0 && !state.activeOrder) return state;
 
-          const activeMap = new Map();
-          prevActive.forEach((o) => {
-            if (o?.id && String(o.table_number) === currentTable) {
-              activeMap.set(o.id, o);
-            }
+          const prevIds = new Set(prevActive.map((o) => o.id));
+
+          // Keep only orders that belong to THIS table AND are still active
+          const updatedActive = allOrders.filter((serverOrder) => {
+            if (!serverOrder?.id) return false;
+            if (String(serverOrder.table_number) !== currentTable) return false;
+            if (!prevIds.has(serverOrder.id)) return false;
+            if (serverOrder.status === 'completed' || serverOrder.status === 'cancelled') return false;
+            return true;
           });
 
-          if (state.activeOrder?.id && String(state.activeOrder.table_number) === currentTable && !activeMap.has(state.activeOrder.id)) {
-            activeMap.set(state.activeOrder.id, state.activeOrder);
-          }
-
-          allOrders.forEach((serverOrder) => {
-            if (serverOrder?.id && String(serverOrder.table_number) === currentTable && activeMap.has(serverOrder.id)) {
-              activeMap.set(serverOrder.id, { ...activeMap.get(serverOrder.id), ...serverOrder });
-            }
-          });
-
-          const syncedList = Array.from(activeMap.values());
           return {
-            activeOrders: syncedList,
-            activeOrder: state.activeOrder && activeMap.has(state.activeOrder.id)
-              ? activeMap.get(state.activeOrder.id)
-              : (syncedList[0] || null),
+            activeOrders: updatedActive,
+            activeOrder: updatedActive[0] || null,
           };
         });
       },
