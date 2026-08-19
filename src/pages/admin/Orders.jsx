@@ -349,63 +349,35 @@ export default function OrdersPage() {
               style={{ width: 220, fontSize: '0.85rem', padding: '8px 12px' }}
             />
 
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button
-                onClick={() => {
-                  const nextState = !soundEnabled;
-                  setSoundEnabled(nextState);
-                  if (nextState) {
-                    playRestaurantChime();
-                    requestNotificationPermission();
-                    toast.success('Loud sound alerts & background notifications enabled! 🔔');
-                  }
-                }}
-                type="button"
-                title={soundEnabled ? 'Order Alert Chime Enabled' : 'Order Alert Chime Muted'}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  background: soundEnabled ? '#dcfce7' : '#f3f4f6',
-                  border: soundEnabled ? '1.5px solid #86efac' : '1px solid #d1d5db',
-                  color: soundEnabled ? '#15803d' : '#6b7280',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <span>{soundEnabled ? '🔔 Sound ON' : '🔕 Muted'}</span>
-              </button>
-
-              {soundEnabled && (
-                <button
-                  onClick={() => {
-                    playRestaurantChime();
-                    toast('🔊 Playing test restaurant bell chime...', { duration: 2000 });
-                  }}
-                  type="button"
-                  title="Test Restaurant Sound Alert"
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 10,
-                    background: '#fff',
-                    border: '1px solid #d1d5db',
-                    color: '#374151',
-                    fontWeight: 700,
-                    fontSize: '0.78rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
-                  <span>🔊</span>
-                  <span>Test</span>
-                </button>
-              )}
-            </div>
+            <button
+              onClick={() => {
+                const nextState = !soundEnabled;
+                setSoundEnabled(nextState);
+                if (nextState) {
+                  playRestaurantChime();
+                  requestNotificationPermission();
+                  toast.success('Sound alerts enabled! 🔔');
+                }
+              }}
+              type="button"
+              title={soundEnabled ? 'Order Alert Sound: ON' : 'Order Alert Sound: Muted'}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 10,
+                background: soundEnabled ? '#dcfce7' : '#f3f4f6',
+                border: soundEnabled ? '1.5px solid #86efac' : '1px solid #d1d5db',
+                color: soundEnabled ? '#15803d' : '#6b7280',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>{soundEnabled ? '🔔 Sound ON' : '🔕 Muted'}</span>
+            </button>
           </div>
         </div>
       </div>

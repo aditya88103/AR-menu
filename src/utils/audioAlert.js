@@ -1,6 +1,6 @@
 /**
  * Restaurant Audio & Background Notification Manager
- * Dual-Engine sound playback (HTML5 Audio + Web Audio API) with Desktop Notifications
+ * Melodic 4-Tone Crystal Marimba Chime + Background Push Notifications
  */
 
 let audioCtx = null;
@@ -8,11 +8,11 @@ let titleInterval = null;
 let cachedAudioElement = null;
 const ORIGINAL_TITLE = 'Biggies Admin';
 
-// Pre-synthesized loud restaurant bell ding-dong WAV sound (Data URI)
-function createChimeWavUrl() {
+// Pre-synthesized melodic 4-tone restaurant chime (Ding-Ding-Ding-Dong! 🎶)
+function createMelodicChimeWavUrl() {
   try {
-    const sampleRate = 22050;
-    const duration = 1.0;
+    const sampleRate = 44100;
+    const duration = 1.35;
     const numSamples = Math.floor(sampleRate * duration);
     const buffer = new ArrayBuffer(44 + numSamples * 2);
     const view = new DataView(buffer);
@@ -38,23 +38,33 @@ function createChimeWavUrl() {
     writeString(36, 'data');
     view.setUint32(40, numSamples * 2, true);
 
-    // Bell chime synthesis (Ding-Dong harmonics)
+    // Melody: C5 (523Hz), E5 (659Hz), G5 (784Hz), C6 (1046Hz)
+    const notes = [
+      { freq: 523.25, start: 0.0, dur: 0.35, vol: 0.75 },
+      { freq: 659.25, start: 0.12, dur: 0.40, vol: 0.85 },
+      { freq: 783.99, start: 0.24, dur: 0.45, vol: 0.95 },
+      { freq: 1046.5, start: 0.38, dur: 0.95, vol: 1.0 },
+    ];
+
     for (let i = 0; i < numSamples; i++) {
       const t = i / sampleRate;
-      // High Ding (1046.5 Hz)
-      const env1 = Math.exp(-t * 6);
-      const s1 = Math.sin(2 * Math.PI * 1046.5 * t) + 0.4 * Math.sin(2 * Math.PI * 2093 * t);
-      
-      // Lower Dong (784 Hz) starting at 0.15s
-      let s2 = 0;
-      if (t > 0.15) {
-        const t2 = t - 0.15;
-        const env2 = Math.exp(-t2 * 4);
-        s2 = Math.sin(2 * Math.PI * 784 * t2) + 0.5 * Math.sin(2 * Math.PI * 1568 * t2);
-        s2 *= env2;
+      let sample = 0;
+
+      for (const n of notes) {
+        if (t >= n.start && t < n.start + n.dur) {
+          const elapsed = t - n.start;
+          const env = Math.exp(-elapsed * 5.5);
+          const w = 2 * Math.PI * n.freq;
+          // Rich marimba & glass bell harmonics
+          const wave = Math.sin(w * elapsed)
+                     + 0.35 * Math.sin(2 * w * elapsed)
+                     + 0.15 * Math.sin(3 * w * elapsed)
+                     + 0.08 * Math.sin(4 * w * elapsed);
+          sample += wave * env * n.vol;
+        }
       }
 
-      const sample = Math.max(-1, Math.min(1, s1 * env1 * 0.7 + s2 * 0.65));
+      sample = Math.max(-1, Math.min(1, sample * 0.48));
       view.setInt16(44 + i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
     }
 
@@ -68,7 +78,7 @@ function createChimeWavUrl() {
 let chimeUrl = null;
 if (typeof window !== 'undefined') {
   try {
-    chimeUrl = createChimeWavUrl();
+    chimeUrl = createMelodicChimeWavUrl();
     if (chimeUrl) {
       cachedAudioElement = new Audio(chimeUrl);
       cachedAudioElement.volume = 1.0;
@@ -89,7 +99,7 @@ export function getAudioContext() {
   return audioCtx;
 }
 
-// Global user interaction listener to unlock audio permanently
+// Auto-unlock audio on user interaction
 if (typeof window !== 'undefined') {
   const unlockAudio = () => {
     const ctx = getAudioContext();
@@ -97,7 +107,6 @@ if (typeof window !== 'undefined') {
       ctx.resume().catch(() => {});
     }
     if (cachedAudioElement) {
-      // Warm up HTML5 audio
       cachedAudioElement.play().then(() => {
         cachedAudioElement.pause();
         cachedAudioElement.currentTime = 0;
@@ -118,25 +127,21 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * Loud, crisp service bell chime
+ * Play premium 4-note melodic restaurant chime
  */
 export function playRestaurantChime() {
-  let played = false;
-
-  // 1. Try HTML5 Audio (Bypasses background oscillator timer throttling)
+  // 1. Primary Engine: High-fidelity WAV Audio
   try {
     if (chimeUrl) {
       const snd = new Audio(chimeUrl);
       snd.volume = 1.0;
-      snd.play().then(() => {
-        played = true;
-      }).catch((err) => {
+      snd.play().catch((err) => {
         console.warn('HTML5 Audio note:', err);
       });
     }
   } catch (e) {}
 
-  // 2. Web Audio API Oscillator synthesis fallback (multi-chord bell)
+  // 2. Secondary Engine: Web Audio synthesis fallback
   try {
     const ctx = getAudioContext();
     if (ctx) {
@@ -146,9 +151,10 @@ export function playRestaurantChime() {
 
       const now = ctx.currentTime;
       const notes = [
-        { freq: 587.33, time: 0, dur: 0.4, gain: 0.5 },     // D5
-        { freq: 880, time: 0.12, dur: 0.5, gain: 0.55 },     // A5
-        { freq: 1174.66, time: 0.25, dur: 0.9, gain: 0.65 }, // D6
+        { freq: 523.25, time: 0, dur: 0.35, gain: 0.45 },
+        { freq: 659.25, time: 0.12, dur: 0.40, gain: 0.5 },
+        { freq: 783.99, time: 0.24, dur: 0.45, gain: 0.55 },
+        { freq: 1046.5, time: 0.38, dur: 0.95, gain: 0.65 },
       ];
 
       notes.forEach(({ freq, time, dur, gain }) => {
@@ -179,11 +185,7 @@ export function playRestaurantChime() {
 export function requestNotificationPermission() {
   if (typeof window !== 'undefined' && 'Notification' in window) {
     if (Notification.permission === 'default') {
-      Notification.requestPermission().then((perm) => {
-        if (perm === 'granted') {
-          console.log('✅ Desktop notifications granted');
-        }
-      });
+      Notification.requestPermission();
     }
   }
 }
@@ -218,17 +220,12 @@ export function stopTitleAlert() {
  * Full notification suite when new order arrives
  */
 export function notifyNewOrder(order) {
-  console.log('🔊 FIRING ORDER SOUND & NOTIFICATION for order:', order);
-
-  // 1. Play loud restaurant chime
   playRestaurantChime();
 
-  // 2. Flash page title if in background
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
     startTitleAlert(order);
   }
 
-  // 3. Desktop OS notification (works even when browser is minimized)
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const orderNum = order?.order_number || 'New Order';
@@ -236,7 +233,7 @@ export function notifyNewOrder(order) {
       const total = order?.total ? `₹${order.total}` : '';
 
       const notif = new Notification(`🔔 ${orderNum} - ${tableNum}`, {
-        body: `New order received! Total: ${total}. Tap to open kitchen view.`,
+        body: `New order received! Total: ${total}. Tap to view.`,
         icon: '/favicon.svg',
         tag: `order-${order?.id || Date.now()}`,
         requireInteraction: false,
