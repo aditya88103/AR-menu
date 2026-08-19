@@ -2,15 +2,18 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { fetchCategories, addDish, updateDish, fetchDishes, uploadFile, getStoredCategories, getStoredDishes } from '../../utils/firestore';
+import { uploadToImgBB } from '../../utils/imgbb';
 import toast from 'react-hot-toast';
 
 const EMPTY_FORM = { name: '', price: '', description: '', category: '', isVeg: null }; // isVeg null = not yet selected
 
-/* ── Image upload with camera capture support ── */
-function ImageUploadField({ label, file, setFile, existingUrl, onUrlChange }) {
+/* ── Image upload with ImgBB and camera capture support ── */
+function ImageUploadField({ label, existingUrl, onUrlChange }) {
   const [preview, setPreview] = useState(existingUrl || null);
+  const [isUploading, setIsUploading] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Update preview when existingUrl changes
   useEffect(() => {
@@ -19,12 +22,44 @@ function ImageUploadField({ label, file, setFile, existingUrl, onUrlChange }) {
     }
   }, [existingUrl]);
 
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file (JPG, PNG, WebP)');
+      return;
+    }
+
+    setIsUploading(true);
+    const toastId = toast.loading('Uploading dish photo to ImgBB...');
+
+    try {
+      // Direct local preview first
+      const localPreview = URL.createObjectURL(file);
+      setPreview(localPreview);
+
+      // Upload to ImgBB
+      const imgbbUrl = await uploadToImgBB(file);
+      console.log('✅ Uploaded to ImgBB:', imgbbUrl);
+      setPreview(imgbbUrl);
+      if (onUrlChange) onUrlChange(imgbbUrl);
+      toast.success('Dish photo uploaded to ImgBB! 📸', { id: toastId });
+    } catch (err) {
+      console.error('ImgBB upload error:', err);
+      toast.error('Failed to upload image. Please check your internet or enter image URL.', { id: toastId });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleUrlSubmit = () => {
     if (urlInput.trim()) {
       const url = urlInput.trim();
       setPreview(url);
       setShowUrlInput(false);
-      if (onUrlChange) onUrlChange(url); // Pass URL to parent
+      if (onUrlChange) onUrlChange(url);
       toast.success('Image URL added! ✅');
     }
   };
@@ -43,86 +78,151 @@ function ImageUploadField({ label, file, setFile, existingUrl, onUrlChange }) {
         </label>
       )}
 
-      {/* Preview */}
+      {/* Hidden file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        accept="image/*"
+        style={{ display: 'none' }}
+      />
+
+      {/* Preview Card */}
       {preview && (
-        <div style={{ position: 'relative', marginBottom: 10 }}>
+        <div style={{ position: 'relative', marginBottom: 12, borderRadius: 14, overflow: 'hidden', border: '2px solid #fecdd3', boxShadow: '0 4px 14px rgba(225,29,72,0.1)' }}>
           <img 
             src={preview} 
-            alt="preview" 
+            alt="dish preview" 
             onError={(e) => {
-              console.error('Image load error:', preview);
               e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23fecdd3" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="48"%3E🍽️%3C/text%3E%3C/svg%3E';
             }}
             style={{
-              width: '100%', maxHeight: 200, objectFit: 'cover',
-              borderRadius: 12, border: '2px solid #fecdd3',
+              width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block',
             }} 
           />
+
+          {/* ImgBB badge */}
+          <div style={{
+            position: 'absolute', bottom: 10, left: 10,
+            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
+            color: '#fff', fontSize: '0.7rem', fontWeight: 700,
+            padding: '3px 10px', borderRadius: 99,
+            display: 'flex', alignItems: 'center', gap: 5,
+          }}>
+            <span>☁️</span> ImgBB Hosted
+          </div>
+
+          {/* Remove Button */}
           <button
             type="button"
             onClick={handleClear}
             style={{
               position: 'absolute', top: 8, right: 8,
-              background: 'rgba(0,0,0,0.6)', color: '#fff',
+              background: 'rgba(225,29,72,0.85)', color: '#fff',
               border: 'none', borderRadius: '50%', width: 28, height: 28,
-              cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
             }}
+            title="Remove image"
           >✕</button>
         </div>
       )}
 
-      {/* URL Input */}
-      {showUrlInput ? (
-        <div style={{ marginBottom: 10 }}>
-          <input
-            type="url"
-            placeholder="https://images.unsplash.com/photo-xxx?w=500"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            className="admin-input"
-            style={{ marginBottom: 8 }}
-            onKeyPress={(e) => e.key === 'Enter' && handleUrlSubmit()}
-            autoFocus
-          />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              onClick={handleUrlSubmit}
-              style={{
-                flex: 1, padding: '10px', borderRadius: 10,
-                background: '#16a34a', color: '#fff',
-                border: 'none', cursor: 'pointer', fontWeight: 600,
-              }}
-            >✓ Add Image</button>
-            <button
-              type="button"
-              onClick={() => setShowUrlInput(false)}
-              style={{
-                padding: '10px 16px', borderRadius: 10,
-                background: '#ef4444', color: '#fff',
-                border: 'none', cursor: 'pointer', fontWeight: 600,
-              }}
-            >Cancel</button>
-          </div>
-          <p style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: 8 }}>
-            💡 Tip: Use Unsplash.com for free food images
-          </p>
+      {/* Upload Controls */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            type="button"
+            disabled={isUploading}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              flex: 1,
+              padding: '12px 14px',
+              borderRadius: 12,
+              background: isUploading ? '#9ca3af' : 'linear-gradient(135deg, #e11d48, #be123c)',
+              color: '#fff',
+              border: 'none',
+              cursor: isUploading ? 'not-allowed' : 'pointer',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              boxShadow: '0 4px 12px rgba(225,29,72,0.3)',
+            }}
+          >
+            {isUploading ? (
+              <>
+                <div style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                <span>Uploading to ImgBB...</span>
+              </>
+            ) : (
+              <>
+                <span>📸</span>
+                <span>{preview ? 'Change Photo (ImgBB)' : 'Upload Photo (ImgBB)'}</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowUrlInput(!showUrlInput)}
+            style={{
+              padding: '12px 16px',
+              borderRadius: 12,
+              background: '#f3f4f6',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span>🔗</span>
+            <span>URL</span>
+          </button>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setShowUrlInput(true)}
-          style={{
-            width: '100%', padding: '12px', borderRadius: 10,
-            background: 'linear-gradient(135deg,#e11d48,#9f1239)',
-            color: '#fff', border: 'none', cursor: 'pointer',
-            fontWeight: 600, fontSize: '0.9rem',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}
-        >
-          🔗 Add Image URL
-        </button>
-      )}
+
+        {/* URL Input Form */}
+        {showUrlInput && (
+          <div style={{ background: '#f9fafb', padding: 12, borderRadius: 12, border: '1px solid #e5e7eb', marginTop: 4 }}>
+            <input
+              type="url"
+              placeholder="Paste image URL (e.g. https://i.ibb.co/... or Unsplash)"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              className="admin-input"
+              style={{ marginBottom: 8, fontSize: '0.85rem' }}
+              onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleUrlSubmit}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 8,
+                  background: '#16a34a', color: '#fff',
+                  border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem',
+                }}
+              >✓ Set URL</button>
+              <button
+                type="button"
+                onClick={() => setShowUrlInput(false)}
+                style={{
+                  padding: '8px 12px', borderRadius: 8,
+                  background: '#ef4444', color: '#fff',
+                  border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem',
+                }}
+              >Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -387,19 +487,8 @@ export default function DishForm() {
       let imageURL = imageUrl || existingData.imageURL || '';
       let modelURL = modelUrl || existingData.modelURL || '';
 
-      console.log('💾 Saving dish...', { imageFile: !!imageFile, imageUrl, modelFile: !!modelFile, modelUrl });
+      console.log('💾 Saving dish...', { imageUrl: imageURL, modelUrl: modelURL });
 
-      // Upload files if provided (optional)
-      if (imageFile) {
-        console.log('📤 Uploading image...');
-        const uploaded = await uploadFile(imageFile, 'dishes/images');
-        if (uploaded) {
-          imageURL = uploaded;
-          console.log('✅ Image uploaded:', imageURL);
-        } else {
-          console.warn('⚠️ Image upload failed, keeping existing URL');
-        }
-      }
       if (modelFile) {
         console.log('📤 Uploading model...');
         const uploaded = await uploadFile(modelFile, 'dishes/models');
@@ -514,20 +603,18 @@ export default function DishForm() {
             </div>
           </div>
 
-          {/* Dish Photo — with camera capture */}
+          {/* Dish Photo — with ImgBB and camera capture */}
           <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
             <h2 style={{ fontWeight: 700, marginBottom: 6, fontSize: '0.95rem', color: '#374151', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ background: '#fff1f2', color: '#e11d48', borderRadius: 8, padding: '4px 8px', fontSize: '0.8rem' }}>2</span>
-              Dish Photo
+              Dish Photo (ImgBB Hosted)
             </h2>
             <p style={{ fontSize: '0.78rem', color: '#9ca3af', marginBottom: 14 }}>
-              🔗 Add image URL from Unsplash or any image hosting service
+              📸 Upload photo directly from phone/device to ImgBB or paste an image URL
             </p>
             <ImageUploadField
               label=""
-              file={imageFile}
-              setFile={setImageFile}
-              existingUrl={existingData.imageURL}
+              existingUrl={imageUrl || existingData.imageURL}
               onUrlChange={setImageUrl}
             />
           </div>

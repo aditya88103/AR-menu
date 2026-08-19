@@ -47,6 +47,8 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState(() => getStoredOrders());
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all' | 'pending' | 'preparing' | 'served' | 'completed' | 'cancelled'
+  const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'today' | 'yesterday' | 'last7' | 'thisMonth' | 'custom'
+  const [customDate, setCustomDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [search, setSearch] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [selectedOrderForPrint, setSelectedOrderForPrint] = useState(null);
@@ -101,8 +103,48 @@ export default function OrdersPage() {
     }, 100);
   };
 
+  // Date filtering helper
+  const isSameDay = (d1, d2) => {
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  };
+
+  const matchesDate = (orderDateStr) => {
+    if (dateFilter === 'all') return true;
+    const orderDate = new Date(orderDateStr || Date.now());
+    const now = new Date();
+
+    if (dateFilter === 'today') {
+      return isSameDay(orderDate, now);
+    }
+    if (dateFilter === 'yesterday') {
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      return isSameDay(orderDate, yesterday);
+    }
+    if (dateFilter === 'last7') {
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(now.getDate() - 7);
+      return orderDate >= sevenDaysAgo && orderDate <= now;
+    }
+    if (dateFilter === 'thisMonth') {
+      return orderDate.getFullYear() === now.getFullYear() && orderDate.getMonth() === now.getMonth();
+    }
+    if (dateFilter === 'custom' && customDate) {
+      const target = new Date(customDate + 'T00:00:00');
+      return isSameDay(orderDate, target);
+    }
+    return true;
+  };
+
+  // Orders matching date filter
+  const dateScopedOrders = orders.filter((o) => matchesDate(o.created_at));
+
   // Filter & search
-  const filteredOrders = orders.filter((o) => {
+  const filteredOrders = dateScopedOrders.filter((o) => {
     const matchesFilter = filter === 'all' ? true : o.status === filter;
     const q = search.toLowerCase();
     const matchesSearch =
@@ -113,20 +155,112 @@ export default function OrdersPage() {
     return matchesFilter && matchesSearch;
   });
 
-  // Calculate quick stats
-  const pendingCount = orders.filter((o) => o.status === 'pending').length;
-  const preparingCount = orders.filter((o) => o.status === 'preparing').length;
-  const servedCount = orders.filter((o) => o.status === 'served').length;
-  const completedCount = orders.filter((o) => o.status === 'completed').length;
-  const totalRevenue = orders
+  // Calculate quick stats based on selected date
+  const pendingCount = dateScopedOrders.filter((o) => o.status === 'pending').length;
+  const preparingCount = dateScopedOrders.filter((o) => o.status === 'preparing').length;
+  const servedCount = dateScopedOrders.filter((o) => o.status === 'served').length;
+  const completedCount = dateScopedOrders.filter((o) => o.status === 'completed').length;
+  const totalRevenue = dateScopedOrders
     .filter((o) => o.status !== 'cancelled')
     .reduce((sum, o) => sum + Number(o.total || 0), 0);
 
   return (
-    <AdminLayout title="Live Kitchen & Orders">
+    <AdminLayout title="Live Kitchen & Order History">
       {/* Top Controls & KPI Bar */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
         
+        {/* Date Filter Bar */}
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 16,
+            padding: '14px 18px',
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#374151', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span>📅</span> Select Date:
+            </span>
+
+            {[
+              { id: 'all', label: 'All Time' },
+              { id: 'today', label: '🌟 Today' },
+              { id: 'yesterday', label: '⏪ Yesterday' },
+              { id: 'last7', label: '📆 Last 7 Days' },
+              { id: 'thisMonth', label: '🗓️ This Month' },
+              { id: 'custom', label: '🎯 Pick Date' },
+            ].map((btn) => (
+              <button
+                key={btn.id}
+                type="button"
+                onClick={() => setDateFilter(btn.id)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: dateFilter === btn.id ? '1.5px solid #e11d48' : '1px solid #e5e7eb',
+                  background: dateFilter === btn.id ? 'linear-gradient(135deg, #e11d48, #be123c)' : '#f9fafb',
+                  color: dateFilter === btn.id ? '#fff' : '#4b5563',
+                  boxShadow: dateFilter === btn.id ? '0 2px 6px rgba(225,29,72,0.25)' : 'none',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {btn.label}
+              </button>
+            ))}
+
+            {dateFilter === 'custom' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="date"
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 8,
+                    border: '1.5px solid #e11d48',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    color: '#1c1917',
+                    outline: 'none',
+                    background: '#fff1f2',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Quick Summary Pill for selected date */}
+          <div
+            style={{
+              fontSize: '0.78rem',
+              fontWeight: 800,
+              color: '#be123c',
+              background: '#fff1f2',
+              padding: '6px 14px',
+              borderRadius: 99,
+              border: '1px solid #fecdd3',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span>📊</span>
+            <span>{dateScopedOrders.length} Orders</span>
+            <span>·</span>
+            <span>Sales: ₹{totalRevenue}</span>
+          </div>
+        </div>
+
         {/* KPI Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
           {[
@@ -181,7 +315,7 @@ export default function OrdersPage() {
           {/* Status Tabs */}
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
             {[
-              { id: 'all', label: `All (${orders.length})` },
+              { id: 'all', label: `All (${dateScopedOrders.length})` },
               { id: 'pending', label: `⏳ Pending (${pendingCount})` },
               { id: 'preparing', label: `👨‍🍳 Preparing (${preparingCount})` },
               { id: 'served', label: `🍽️ Served (${servedCount})` },
