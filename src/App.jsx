@@ -1,5 +1,5 @@
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { isLoggedIn } from './hooks/useAuth';
 
@@ -22,9 +22,22 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Redirect legacy hash URLs (e.g. /#/admin/login or /#/menu?table=3) seamlessly
+function LegacyHashRedirect() {
+  const navigate = useNavigate();
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#/')) {
+      const target = window.location.hash.slice(1);
+      navigate(target, { replace: true });
+    }
+  }, [navigate]);
+  return null;
+}
+
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
+      <LegacyHashRedirect />
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
       <Routes>
         {/* Customer menu */}
@@ -47,6 +60,6 @@ export default function App() {
         <Route path="/"  element={<Navigate to="/menu" replace />} />
         <Route path="*"  element={<Navigate to="/menu" replace />} />
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 }

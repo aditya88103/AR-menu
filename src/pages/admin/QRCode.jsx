@@ -10,9 +10,8 @@ export default function QRPage() {
   const activeTable = customTable.trim() !== '' ? customTable.trim() : selectedTable;
   
   // Format URL pointing directly to the customer menu with table parameter
-  // Works for both HashRouter (#/menu?table=X) and regular paths
   const baseOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  const menuUrl = `${baseOrigin}/#/menu?table=${encodeURIComponent(activeTable)}`;
+  const menuUrl = `${baseOrigin}/menu?table=${encodeURIComponent(activeTable)}`;
 
   const handleDownload = () => {
     const canvas = document.getElementById('qr-canvas');

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ADMIN_USER, ADMIN_PASS } from '../../config/restaurant';
 import { login } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -134,9 +134,9 @@ export default function AdminLogin() {
         </div>
 
         <div style={{ textAlign:'center', marginTop:16 }}>
-          <a href="/menu" style={{ color:'#e11d48', fontSize:'0.8rem', fontWeight:600, textDecoration:'none' }}>
+          <Link to="/menu" style={{ color:'#e11d48', fontSize:'0.8rem', fontWeight:600, textDecoration:'none' }}>
             👁️ View Customer Menu →
-          </a>
+          </Link>
         </div>
       </div>
     </div>
