@@ -1,133 +1,39 @@
 /**
- * Restaurant Audio & Background Notification Manager
- * Strictly isolated to Admin Panel (/admin/*) only.
- * NEVER plays on customer menu pages!
+ * Restaurant Order Audio Alert Manager
+ * ONLY plays sound on the Admin Orders page when a new customer order is received.
+ * NEVER plays on customer menu pages or on user clicks/interactions.
  */
 
-let audioCtx = null;
-let titleInterval = null;
 let singletonAudio = null;
+let titleInterval = null;
 const ORIGINAL_TITLE = 'Biggies Admin';
 const CHIME_SRC = '/sounds/order_chime.wav';
 
-// Check if current browser view is in the Admin Panel
-export function isAdminRoute() {
+// Check if current page is in the Admin panel
+function isAdminPage() {
   if (typeof window === 'undefined') return false;
   const path = window.location.pathname || '';
   const hash = window.location.hash || '';
   return path.startsWith('/admin') || hash.includes('/admin');
 }
 
-// Get or initialize singleton Audio element
-function getChimeAudio() {
-  if (typeof window === 'undefined' || !isAdminRoute()) return null;
-  if (!singletonAudio) {
-    singletonAudio = new Audio(CHIME_SRC);
-    singletonAudio.volume = 1.0;
-    singletonAudio.preload = 'auto';
-  }
-  return singletonAudio;
-}
-
-export function getAudioContext() {
-  if (typeof window === 'undefined' || !isAdminRoute()) return null;
-  const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioCtxClass) return null;
-  if (!audioCtx) {
-    audioCtx = new AudioCtxClass();
-  }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
-  }
-  return audioCtx;
-}
-
-// Auto-unlock audio permissions on user interaction ONLY on Admin routes
-if (typeof window !== 'undefined') {
-  const unlockAudio = () => {
-    if (!isAdminRoute()) return;
-
-    // 1. Prime HTML5 Audio buffer without playing audible sound
-    const snd = getChimeAudio();
-    if (snd && snd.readyState === 0) {
-      snd.load();
-    }
-
-    // 2. Unlock Web Audio Context
-    const ctx = getAudioContext();
-    if (ctx && ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
-    }
-  };
-
-  window.addEventListener('click', unlockAudio, { passive: true });
-  window.addEventListener('touchstart', unlockAudio, { passive: true });
-  window.addEventListener('keydown', unlockAudio, { passive: true });
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && isAdminRoute()) {
-      unlockAudio();
-      stopTitleAlert();
-    }
-  });
-}
-
 /**
- * Play crystal-clear 4-note ascending restaurant chime
- * STRICTLY restricted to Admin pages.
+ * Play order chime audio (Admin only, when order is placed)
  */
 export function playRestaurantChime() {
-  // Never play on customer menu / tracking pages
-  if (!isAdminRoute()) return;
+  if (!isAdminPage()) return;
 
-  // 1. Primary Engine: Direct HTML5 Audio Element
   try {
-    const snd = getChimeAudio();
-    if (snd) {
-      snd.currentTime = 0;
-      snd.volume = 1.0;
-      snd.play().catch((err) => {
-        console.warn('HTML5 Audio play warning:', err);
-      });
+    if (!singletonAudio) {
+      singletonAudio = new Audio(CHIME_SRC);
+      singletonAudio.volume = 1.0;
     }
-  } catch (e) {}
-
-  // 2. Secondary Engine: Web Audio API Oscillator synthesis fallback
-  try {
-    const ctx = getAudioContext();
-    if (ctx) {
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
-
-      const now = ctx.currentTime;
-      // Notes: F5 (698Hz), A5 (880Hz), C6 (1046Hz), F6 (1397Hz)
-      const notes = [
-        { freq: 698.46, time: 0, dur: 0.32, gain: 0.5 },
-        { freq: 880.00, time: 0.12, dur: 0.36, gain: 0.55 },
-        { freq: 1046.50, time: 0.24, dur: 0.42, gain: 0.65 },
-        { freq: 1396.91, time: 0.38, dur: 0.85, gain: 0.75 },
-      ];
-
-      notes.forEach(({ freq, time, dur, gain }) => {
-        const osc = ctx.createOscillator();
-        const gainNode = ctx.createGain();
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, now + time);
-
-        gainNode.gain.setValueAtTime(gain, now + time);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + time + dur);
-
-        osc.connect(gainNode);
-        gainNode.connect(ctx.destination);
-
-        osc.start(now + time);
-        osc.stop(now + time + dur);
-      });
-    }
-  } catch (err) {
-    console.warn('Web Audio synthesis note:', err);
+    singletonAudio.currentTime = 0;
+    singletonAudio.play().catch((err) => {
+      console.warn('Audio play note:', err);
+    });
+  } catch (e) {
+    console.warn('Audio play error:', e);
   }
 }
 
@@ -135,18 +41,18 @@ export function playRestaurantChime() {
  * Request OS Desktop notification permission (Admin only)
  */
 export function requestNotificationPermission() {
-  if (typeof window !== 'undefined' && isAdminRoute() && 'Notification' in window) {
+  if (typeof window !== 'undefined' && isAdminPage() && 'Notification' in window) {
     if (Notification.permission === 'default') {
-      Notification.requestPermission();
+      Notification.requestPermission().catch(() => {});
     }
   }
 }
 
 /**
- * Flashes browser tab title if tab is inactive/minimized (Admin only)
+ * Flashes browser tab title when tab is in background (Admin only)
  */
 export function startTitleAlert(orderInfo) {
-  if (typeof document === 'undefined' || !isAdminRoute()) return;
+  if (typeof document === 'undefined' || !isAdminPage()) return;
   stopTitleAlert();
 
   let toggle = false;
@@ -155,7 +61,7 @@ export function startTitleAlert(orderInfo) {
       ? `🔔 NEW ORDER! (Table #${orderInfo?.table_number || '?'})`
       : `🍔 BIGGIES - NEW ORDER WAITING!`;
     toggle = !toggle;
-  }, 900);
+  }, 1000);
 }
 
 export function stopTitleAlert() {
@@ -163,28 +69,28 @@ export function stopTitleAlert() {
     clearInterval(titleInterval);
     titleInterval = null;
   }
-  if (typeof document !== 'undefined' && isAdminRoute()) {
+  if (typeof document !== 'undefined' && isAdminPage()) {
     document.title = ORIGINAL_TITLE;
   }
 }
 
 /**
- * Full notification suite when new order arrives (Admin only)
+ * Triggered ONLY when a brand new customer order arrives
  */
 export function notifyNewOrder(order) {
-  if (!isAdminRoute()) return;
+  if (!isAdminPage()) return;
 
-  console.log('🔔 [ADMIN SOUND ALERT] New Order:', order?.order_number);
+  console.log('🔔 New customer order arrived:', order?.order_number);
 
-  // 1. Play loud chime
+  // 1. Play sound chime
   playRestaurantChime();
 
-  // 2. Flash page title if in background
+  // 2. Flash tab title if minimized/background
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
     startTitleAlert(order);
   }
 
-  // 3. Desktop OS notification (works even when browser is minimized)
+  // 3. Desktop OS notification
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const orderNum = order?.order_number || 'New Order';

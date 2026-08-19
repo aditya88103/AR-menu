@@ -354,9 +354,10 @@ export default function OrdersPage() {
                 const nextState = !soundEnabled;
                 setSoundEnabled(nextState);
                 if (nextState) {
-                  playRestaurantChime();
                   requestNotificationPermission();
                   toast.success('Sound alerts enabled! 🔔');
+                } else {
+                  toast('Sound alerts muted 🔕', { icon: '🔕' });
                 }
               }}
               type="button"
