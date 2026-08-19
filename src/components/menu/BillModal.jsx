@@ -208,47 +208,68 @@ export default function BillModal({ order, onClose, onOrderMore }) {
           </div>
         </div>
 
-        {/* Multi-Order Tabs Switcher (Shown if more than 1 active order) */}
+        {/* Multi-Order Tabs Switcher (Seamlessly blended into header) */}
         {allActiveOrders.length > 1 && (
           <div
             className="no-print"
             style={{
-              background: '#f3f4f6',
-              padding: '8px 12px',
+              background: 'linear-gradient(135deg, #be123c 0%, #e11d48 100%)',
+              padding: '0 16px 14px',
               display: 'flex',
-              gap: 6,
+              gap: 8,
               overflowX: 'auto',
-              borderBottom: '1px solid #e5e7eb',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              justifyContent: allActiveOrders.length <= 2 ? 'center' : 'flex-start',
             }}
           >
             {allActiveOrders.map((ord, idx) => {
               const isSelected = selectedOrderId === ord.id;
               const ordStatus = getStatusBadge(ord.status);
+              const itemCount = ord.items?.length || 0;
               return (
                 <button
                   key={ord.id}
                   type="button"
                   onClick={() => setSelectedOrderId(ord.id)}
                   style={{
-                    padding: '6px 12px',
-                    borderRadius: 10,
-                    border: isSelected ? '1.5px solid #e11d48' : '1px solid #d1d5db',
-                    background: isSelected ? '#fff' : 'rgba(255,255,255,0.6)',
-                    color: isSelected ? '#be123c' : '#4b5563',
+                    padding: '7px 14px',
+                    borderRadius: 99,
+                    border: 'none',
+                    background: isSelected ? '#fff' : 'rgba(255,255,255,0.18)',
+                    color: isSelected ? '#be123c' : 'rgba(255,255,255,0.92)',
                     fontWeight: 800,
-                    fontSize: '0.75rem',
+                    fontSize: '0.78rem',
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 5,
-                    boxShadow: isSelected ? '0 2px 6px rgba(225,29,72,0.15)' : 'none',
-                    transition: 'all 0.15s ease',
+                    gap: 6,
+                    boxShadow: isSelected ? '0 4px 12px rgba(0,0,0,0.18)' : 'none',
+                    backdropFilter: 'blur(8px)',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                   }}
                 >
                   <span>Order #{idx + 1}</span>
-                  <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>({ord.items?.length || 0} items)</span>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: ordStatus.text }} />
+                  <span style={{
+                    fontSize: '0.65rem',
+                    background: isSelected ? '#fff1f2' : 'rgba(255,255,255,0.22)',
+                    color: isSelected ? '#e11d48' : '#fff',
+                    padding: '1px 7px',
+                    borderRadius: 99,
+                    fontWeight: 700,
+                  }}>
+                    {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                  </span>
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      background: isSelected ? ordStatus.text : '#86efac',
+                      boxShadow: isSelected ? `0 0 6px ${ordStatus.text}` : 'none',
+                    }}
+                  />
                 </button>
               );
             })}
@@ -257,22 +278,24 @@ export default function BillModal({ order, onClose, onOrderMore }) {
               type="button"
               onClick={() => setSelectedOrderId('combined')}
               style={{
-                padding: '6px 12px',
-                borderRadius: 10,
-                border: isCombinedView ? '1.5px solid #e11d48' : '1px solid #d1d5db',
-                background: isCombinedView ? '#fff' : 'rgba(255,255,255,0.6)',
-                color: isCombinedView ? '#be123c' : '#4b5563',
+                padding: '7px 14px',
+                borderRadius: 99,
+                border: 'none',
+                background: isCombinedView ? '#fff' : 'rgba(255,255,255,0.18)',
+                color: isCombinedView ? '#be123c' : 'rgba(255,255,255,0.92)',
                 fontWeight: 800,
-                fontSize: '0.75rem',
+                fontSize: '0.78rem',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
-                boxShadow: isCombinedView ? '0 2px 6px rgba(225,29,72,0.15)' : 'none',
+                gap: 6,
+                boxShadow: isCombinedView ? '0 4px 12px rgba(0,0,0,0.18)' : 'none',
+                backdropFilter: 'blur(8px)',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               }}
             >
-              <span>📋 Total Bill ({allActiveOrders.length})</span>
+              <span>📋 Total Bill</span>
             </button>
           </div>
         )}
