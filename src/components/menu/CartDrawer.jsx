@@ -7,16 +7,14 @@ export default function CartDrawer({ isOpen, onClose, onOrderPlaced }) {
   const items = useCartStore((state) => state.items) || [];
   const tableNumber = useCartStore((state) => state.tableNumber) || '1';
   const customerInfo = useCartStore((state) => state.customerInfo) || { name: '', phone: '', notes: '' };
-  const setTableNumber = useCartStore((state) => state.setTableNumber);
   const setCustomerInfo = useCartStore((state) => state.setCustomerInfo);
   const addItem = useCartStore((state) => state.addItem);
   const removeItem = useCartStore((state) => state.removeItem);
   const deleteItem = useCartStore((state) => state.deleteItem);
   const clearCart = useCartStore((state) => state.clearCart);
-  const setActiveOrder = useCartStore((state) => state.setActiveOrder);
+  const addActiveOrder = useCartStore((state) => state.addActiveOrder);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showTablePicker, setShowTablePicker] = useState(false);
 
   const cartList = Array.isArray(items) ? items : [];
   const subtotal = cartList.reduce((sum, i) => sum + (Number(i?.price) || 0) * (Number(i?.quantity) || 0), 0);
@@ -64,7 +62,7 @@ export default function CartDrawer({ isOpen, onClose, onOrderPlaced }) {
       };
 
       const placed = await createOrder(orderPayload);
-      setActiveOrder(placed);
+      addActiveOrder(placed);
       clearCart();
       toast.success('🎉 Order Placed Successfully!');
       onClose();
@@ -164,90 +162,62 @@ export default function CartDrawer({ isOpen, onClose, onOrderPlaced }) {
             background: '#fafaf9',
           }}
         >
-          {/* Table Number Selector */}
+          {/* Fixed Table Number Display (Locked from QR Code) */}
           <div
             style={{
-              background: '#fff',
+              background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
               borderRadius: 16,
-              padding: '16px',
+              padding: '14px 16px',
               border: '1.5px solid #fecdd3',
               boxShadow: '0 2px 8px rgba(225,29,72,0.06)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, color: '#7f1d1d', fontSize: '0.9rem' }}>
-                <span>📍</span>
-                <span>Dining Table Number</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTablePicker(!showTablePicker)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#e11d48',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, #e11d48, #be123c)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: '1.2rem',
+                  boxShadow: '0 2px 8px rgba(225,29,72,0.3)',
                 }}
               >
-                {showTablePicker ? 'Hide Quick Picker ▲' : 'Change Table ▼'}
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input
-                type="text"
-                value={tableNumber}
-                onChange={(e) => setTableNumber(e.target.value)}
-                placeholder="e.g. 4 or T-2"
-                style={{
-                  flex: 1,
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  border: '1.5px solid #e5e7eb',
-                  fontSize: '0.95rem',
-                  fontWeight: 700,
-                  color: '#1c1917',
-                  outline: 'none',
-                }}
-              />
-              <span style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 600 }}>
-                Table #{tableNumber}
-              </span>
-            </div>
-
-            {showTablePicker && (
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f3f4f6' }}>
-                <div style={{ fontSize: '0.75rem', color: '#9ca3af', fontWeight: 600, marginBottom: 8 }}>
-                  Quick Select Table:
+                🪑
+              </div>
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#9f1239', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Dining Table (QR Scanned)
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => {
-                        setTableNumber(String(num));
-                        setShowTablePicker(false);
-                      }}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        border: tableNumber === String(num) ? '1.5px solid #e11d48' : '1px solid #e5e7eb',
-                        background: tableNumber === String(num) ? '#fff1f2' : '#fff',
-                        color: tableNumber === String(num) ? '#be123c' : '#374151',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Table {num}
-                    </button>
-                  ))}
+                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#7f1d1d' }}>
+                  Table #{tableNumber}
                 </div>
               </div>
-            )}
+            </div>
+            <div
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                background: '#fff',
+                color: '#16a34a',
+                padding: '5px 12px',
+                borderRadius: 99,
+                border: '1px solid #bbf7d0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              }}
+            >
+              <span>🔒</span> Fixed Table
+            </div>
           </div>
 
           {/* Items List */}

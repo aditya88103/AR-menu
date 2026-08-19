@@ -1,27 +1,52 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useCartStore } from '../../store/cartStore';
 import { onSingleOrderChange } from '../../utils/firestore';
 import toast from 'react-hot-toast';
 
 export default function BillModal({ order, onClose, onOrderMore }) {
-  const [currentOrder, setCurrentOrder] = useState(order);
+  const storeActiveOrders = useCartStore((state) => state.activeOrders) || [];
+  const removeActiveOrder = useCartStore((state) => state.removeActiveOrder);
+  const updateActiveOrder = useCartStore((state) => state.updateActiveOrder);
+  const tableNumber = useCartStore((state) => state.tableNumber) || '1';
+
+  // Merge provided order with store active orders
+  const allActiveOrders = React.useMemo(() => {
+    const list = Array.isArray(storeActiveOrders) ? [...storeActiveOrders] : [];
+    if (order && !list.find((o) => o?.id === order.id)) {
+      list.unshift(order);
+    }
+    return list;
+  }, [storeActiveOrders, order]);
+
+  const [selectedOrderId, setSelectedOrderId] = useState(() => {
+    return order?.id || allActiveOrders[0]?.id || 'combined';
+  });
+
   const printRef = useRef(null);
 
-  // Subscribe to live status updates for this specific order
-  useEffect(() => {
-    if (!order?.id) return;
-    setCurrentOrder(order);
+  // Sync selected order if valid
+  const currentOrder = allActiveOrders.find((o) => o.id === selectedOrderId) || allActiveOrders[0];
+  const isCombinedView = selectedOrderId === 'combined' && allActiveOrders.length > 1;
 
-    const unsubscribe = onSingleOrderChange(order.id, (updated) => {
-      if (updated) {
-        console.log('🔔 Order status updated live:', updated.status);
-        setCurrentOrder(updated);
-      }
+  // Real-time live status updates for all active orders
+  useEffect(() => {
+    if (allActiveOrders.length === 0) return;
+
+    const unsubscribes = allActiveOrders.map((ord) => {
+      if (!ord?.id) return () => {};
+      return onSingleOrderChange(ord.id, (updated) => {
+        if (updated) {
+          updateActiveOrder(updated);
+        }
+      });
     });
 
-    return () => unsubscribe();
-  }, [order?.id]);
+    return () => {
+      unsubscribes.forEach((unsub) => unsub && unsub());
+    };
+  }, [allActiveOrders.map((o) => o?.id).join(',')]);
 
-  if (!currentOrder) return null;
+  if (allActiveOrders.length === 0 && !currentOrder) return null;
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -38,27 +63,51 @@ export default function BillModal({ order, onClose, onOrderMore }) {
     }
   };
 
-  const statusInfo = getStatusBadge(currentOrder.status);
+  const statusInfo = getStatusBadge(currentOrder?.status);
+
+  // Combined totals calculation
+  const combinedItems = allActiveOrders.flatMap((o) => o.items || []);
+  const combinedSubtotal = allActiveOrders.reduce((sum, o) => sum + (Number(o.subtotal) || 0), 0);
+  const combinedTax = allActiveOrders.reduce((sum, o) => sum + (Number(o.tax) || 0), 0);
+  const combinedTotal = allActiveOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
 
   const handlePrint = () => {
     window.print();
   };
 
   const handleWhatsAppShare = () => {
-    const itemsList = (currentOrder.items || [])
-      .map((i) => `• ${i.name} (x${i.quantity}) - ₹${i.price * i.quantity}`)
-      .join('\n');
+    const targetOrder = isCombinedView ? null : currentOrder;
 
-    const message = `🍔 *BIGGIES RESTAURANT - ORDER RECEIPT*\n` +
-      `*Order #:* ${currentOrder.order_number}\n` +
-      `*Table #:* Table ${currentOrder.table_number}\n` +
-      `*Customer:* ${currentOrder.customer_name}\n` +
-      `*Status:* ${statusInfo.label}\n\n` +
-      `*Items Ordered:*\n${itemsList}\n\n` +
-      `*Subtotal:* ₹${currentOrder.subtotal}\n` +
-      `*GST (5%):* ₹${currentOrder.tax}\n` +
-      `*Grand Total:* ₹${currentOrder.total}\n\n` +
-      `Thank you for dining with us! ❤️`;
+    let message = '';
+    if (targetOrder) {
+      const itemsList = (targetOrder.items || [])
+        .map((i) => `• ${i.name} (x${i.quantity}) - ₹${i.price * i.quantity}`)
+        .join('\n');
+
+      message = `🍔 *BIGGIES RESTAURANT - ORDER RECEIPT*\n` +
+        `*Order #:* ${targetOrder.order_number}\n` +
+        `*Table #:* Table ${targetOrder.table_number}\n` +
+        `*Customer:* ${targetOrder.customer_name}\n` +
+        `*Status:* ${statusInfo.label}\n\n` +
+        `*Items Ordered:*\n${itemsList}\n\n` +
+        `*Subtotal:* ₹${targetOrder.subtotal}\n` +
+        `*GST (5%):* ₹${targetOrder.tax}\n` +
+        `*Grand Total:* ₹${targetOrder.total}\n\n` +
+        `Thank you for dining with us! ❤️`;
+    } else {
+      const allItemsList = combinedItems
+        .map((i) => `• ${i.name} (x${i.quantity}) - ₹${i.price * i.quantity}`)
+        .join('\n');
+
+      message = `🍔 *BIGGIES RESTAURANT - COMBINED TABLE BILL*\n` +
+        `*Table #:* Table ${tableNumber}\n` +
+        `*Active Orders:* ${allActiveOrders.length} Orders\n\n` +
+        `*All Items Ordered:*\n${allItemsList}\n\n` +
+        `*Combined Subtotal:* ₹${combinedSubtotal}\n` +
+        `*Total GST:* ₹${combinedTax}\n` +
+        `*Combined Grand Total:* ₹${combinedTotal}\n\n` +
+        `Thank you for dining with us! ❤️`;
+    }
 
     const encoded = encodeURIComponent(message);
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
@@ -86,7 +135,7 @@ export default function BillModal({ order, onClose, onOrderMore }) {
         className="printable-bill"
         style={{
           width: '100%',
-          maxWidth: 480,
+          maxWidth: 500,
           background: '#fff',
           borderRadius: 24,
           boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
@@ -102,7 +151,7 @@ export default function BillModal({ order, onClose, onOrderMore }) {
         <div
           style={{
             background: 'linear-gradient(135deg, #7f1d1d 0%, #be123c 60%, #e11d48 100%)',
-            padding: '24px 20px',
+            padding: '20px',
             textAlign: 'center',
             color: '#fff',
             position: 'relative',
@@ -133,12 +182,12 @@ export default function BillModal({ order, onClose, onOrderMore }) {
             ✕
           </button>
 
-          <div style={{ fontSize: 32, marginBottom: 4 }}>🍔</div>
-          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>
+          <div style={{ fontSize: 28, marginBottom: 2 }}>🍔</div>
+          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.35rem', fontWeight: 800, margin: 0 }}>
             Biggies Restaurant
           </h1>
-          <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
-            Food Stop · Serving Love Since 2015
+          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
+            Food Stop · Table #{tableNumber}
           </div>
           <div
             style={{
@@ -147,15 +196,84 @@ export default function BillModal({ order, onClose, onOrderMore }) {
               backdropFilter: 'blur(8px)',
               padding: '4px 14px',
               borderRadius: 99,
-              fontSize: '0.8rem',
+              fontSize: '0.75rem',
               fontWeight: 800,
-              marginTop: 10,
+              marginTop: 8,
               letterSpacing: '0.04em',
             }}
           >
-            ORDER RECEIPT & BILL
+            {allActiveOrders.length > 1 ? `ACTIVE ORDERS (${allActiveOrders.length})` : 'ORDER RECEIPT & LIVE TRACKER'}
           </div>
         </div>
+
+        {/* Multi-Order Tabs Switcher (Shown if more than 1 active order) */}
+        {allActiveOrders.length > 1 && (
+          <div
+            className="no-print"
+            style={{
+              background: '#f3f4f6',
+              padding: '8px 12px',
+              display: 'flex',
+              gap: 6,
+              overflowX: 'auto',
+              borderBottom: '1px solid #e5e7eb',
+            }}
+          >
+            {allActiveOrders.map((ord, idx) => {
+              const isSelected = selectedOrderId === ord.id;
+              const ordStatus = getStatusBadge(ord.status);
+              return (
+                <button
+                  key={ord.id}
+                  type="button"
+                  onClick={() => setSelectedOrderId(ord.id)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 10,
+                    border: isSelected ? '1.5px solid #e11d48' : '1px solid #d1d5db',
+                    background: isSelected ? '#fff' : 'rgba(255,255,255,0.6)',
+                    color: isSelected ? '#be123c' : '#4b5563',
+                    fontWeight: 800,
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    boxShadow: isSelected ? '0 2px 6px rgba(225,29,72,0.15)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>Order #{idx + 1}</span>
+                  <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>({ord.items?.length || 0} items)</span>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: ordStatus.text }} />
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setSelectedOrderId('combined')}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 10,
+                border: isCombinedView ? '1.5px solid #e11d48' : '1px solid #d1d5db',
+                background: isCombinedView ? '#fff' : 'rgba(255,255,255,0.6)',
+                color: isCombinedView ? '#be123c' : '#4b5563',
+                fontWeight: 800,
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                boxShadow: isCombinedView ? '0 2px 6px rgba(225,29,72,0.15)' : 'none',
+              }}
+            >
+              <span>📋 Total Bill ({allActiveOrders.length})</span>
+            </button>
+          </div>
+        )}
 
         {/* Scrollable Bill Body */}
         <div
@@ -168,51 +286,100 @@ export default function BillModal({ order, onClose, onOrderMore }) {
             background: '#fff',
           }}
         >
-          {/* Order Live Status Alert */}
-          <div
-            className="no-print"
-            style={{
-              background: statusInfo.bg,
-              border: `1.5px solid ${statusInfo.border}`,
-              borderRadius: 16,
-              padding: '14px 16px',
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 800, color: '#6b7280', letterSpacing: '0.05em' }}>
-              Live Order Tracker
-            </div>
-            <div style={{ fontSize: '1rem', fontWeight: 900, color: statusInfo.text, marginTop: 3 }}>
-              {statusInfo.label}
-            </div>
-
-            {/* Stepper Progress Bar */}
-            {statusInfo.step > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 4 }}>
-                {[
-                  { step: 1, label: 'Received' },
-                  { step: 2, label: 'Kitchen' },
-                  { step: 3, label: 'Served' },
-                  { step: 4, label: 'Paid' },
-                ].map((s) => (
-                  <div key={s.step} style={{ flex: 1, textAlign: 'center' }}>
-                    <div
-                      style={{
-                        height: 6,
-                        borderRadius: 99,
-                        background: statusInfo.step >= s.step ? '#16a34a' : '#e5e7eb',
-                        marginBottom: 4,
-                        transition: 'all 0.3s ease',
-                      }}
-                    />
-                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: statusInfo.step >= s.step ? '#15803d' : '#9ca3af' }}>
-                      {s.label}
-                    </div>
-                  </div>
-                ))}
+          {/* Live Status Tracker for Single Order */}
+          {!isCombinedView && currentOrder && (
+            <div
+              className="no-print"
+              style={{
+                background: statusInfo.bg,
+                border: `1.5px solid ${statusInfo.border}`,
+                borderRadius: 16,
+                padding: '14px 16px',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 800, color: '#6b7280', letterSpacing: '0.05em' }}>
+                Live Order Tracker · {currentOrder.order_number}
               </div>
-            )}
-          </div>
+              <div style={{ fontSize: '1rem', fontWeight: 900, color: statusInfo.text, marginTop: 3 }}>
+                {statusInfo.label}
+              </div>
+
+              {/* Stepper Progress Bar */}
+              {statusInfo.step > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 4 }}>
+                  {[
+                    { step: 1, label: 'Received' },
+                    { step: 2, label: 'Kitchen' },
+                    { step: 3, label: 'Served' },
+                    { step: 4, label: 'Paid' },
+                  ].map((s) => (
+                    <div key={s.step} style={{ flex: 1, textAlign: 'center' }}>
+                      <div
+                        style={{
+                          height: 6,
+                          borderRadius: 99,
+                          background: statusInfo.step >= s.step ? '#16a34a' : '#e5e7eb',
+                          marginBottom: 4,
+                          transition: 'all 0.3s ease',
+                        }}
+                      />
+                      <div style={{ fontSize: '0.65rem', fontWeight: 700, color: statusInfo.step >= s.step ? '#15803d' : '#9ca3af' }}>
+                        {s.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {currentOrder.status === 'completed' && (
+                <div style={{ marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      removeActiveOrder(currentOrder.id);
+                      toast.success('Completed order cleared from active tracker.');
+                    }}
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #bbf7d0',
+                      color: '#15803d',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      padding: '4px 12px',
+                      borderRadius: 99,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✓ Dismiss Completed Order
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Combined Orders Header (if combined view) */}
+          {isCombinedView && (
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
+                border: '1.5px solid #fecdd3',
+                borderRadius: 16,
+                padding: '14px 16px',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#be123c', textTransform: 'uppercase' }}>
+                Combined Summary for Table #{tableNumber}
+              </div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#7f1d1d', marginTop: 2 }}>
+                {allActiveOrders.length} Orders Placed
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 4 }}>
+                All ongoing orders for your table are listed below.
+              </div>
+            </div>
+          )}
 
           {/* Metadata Card */}
           <div
@@ -228,18 +395,24 @@ export default function BillModal({ order, onClose, onOrderMore }) {
             }}
           >
             <div>
-              <div style={{ color: '#9ca3af', fontSize: '0.72rem', fontWeight: 600 }}>ORDER NUMBER</div>
-              <div style={{ fontWeight: 800, color: '#1c1917' }}>{currentOrder.order_number}</div>
+              <div style={{ color: '#9ca3af', fontSize: '0.72rem', fontWeight: 600 }}>
+                {isCombinedView ? 'ACTIVE ORDERS' : 'ORDER NUMBER'}
+              </div>
+              <div style={{ fontWeight: 800, color: '#1c1917' }}>
+                {isCombinedView ? `${allActiveOrders.length} Orders` : currentOrder.order_number}
+              </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ color: '#9ca3af', fontSize: '0.72rem', fontWeight: 600 }}>TABLE NUMBER</div>
               <div style={{ fontWeight: 900, color: '#e11d48', fontSize: '1rem' }}>
-                Table #{currentOrder.table_number}
+                Table #{tableNumber}
               </div>
             </div>
             <div>
               <div style={{ color: '#9ca3af', fontSize: '0.72rem', fontWeight: 600 }}>CUSTOMER</div>
-              <div style={{ fontWeight: 700, color: '#1c1917' }}>{currentOrder.customer_name}</div>
+              <div style={{ fontWeight: 700, color: '#1c1917' }}>
+                {currentOrder.customer_name || 'Guest'}
+              </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ color: '#9ca3af', fontSize: '0.72rem', fontWeight: 600 }}>PHONE</div>
@@ -247,27 +420,12 @@ export default function BillModal({ order, onClose, onOrderMore }) {
                 {currentOrder.customer_phone || 'N/A'}
               </div>
             </div>
-            <div style={{ gridColumn: 'span 2', borderTop: '1px solid #e5e7eb', paddingTop: 6 }}>
-              <div style={{ color: '#9ca3af', fontSize: '0.72rem', fontWeight: 600 }}>DATE & TIME</div>
-              <div style={{ fontWeight: 600, color: '#4b5563' }}>
-                {new Date(currentOrder.created_at || Date.now()).toLocaleString('en-IN', {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                })}
-              </div>
-            </div>
-            {currentOrder.notes && (
-              <div style={{ gridColumn: 'span 2', background: '#fff1f2', padding: '8px 10px', borderRadius: 8, border: '1px solid #fecdd3' }}>
-                <div style={{ color: '#be123c', fontSize: '0.72rem', fontWeight: 800 }}>SPECIAL INSTRUCTIONS:</div>
-                <div style={{ color: '#7f1d1d', fontWeight: 600, fontSize: '0.78rem' }}>{currentOrder.notes}</div>
-              </div>
-            )}
           </div>
 
           {/* Itemized Table */}
           <div>
             <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1c1917', marginBottom: 8 }}>
-              Items Summary
+              {isCombinedView ? `All Ordered Dishes (${combinedItems.length})` : `Order Items (${currentOrder.items?.length || 0})`}
             </div>
             <div
               style={{
@@ -286,7 +444,7 @@ export default function BillModal({ order, onClose, onOrderMore }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(currentOrder.items || []).map((item, idx) => (
+                  {(isCombinedView ? combinedItems : currentOrder.items || []).map((item, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
                       <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1c1917' }}>
                         <span style={{ marginRight: 5 }}>{item.isVeg ? '🟢' : '🔴'}</span>
@@ -323,11 +481,15 @@ export default function BillModal({ order, onClose, onOrderMore }) {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6b7280' }}>
               <span>Subtotal</span>
-              <span style={{ fontWeight: 700 }}>₹{currentOrder.subtotal}</span>
+              <span style={{ fontWeight: 700 }}>
+                ₹{isCombinedView ? combinedSubtotal : currentOrder.subtotal}
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6b7280' }}>
               <span>GST (5%)</span>
-              <span style={{ fontWeight: 700 }}>₹{currentOrder.tax}</span>
+              <span style={{ fontWeight: 700 }}>
+                ₹{isCombinedView ? combinedTax : currentOrder.tax}
+              </span>
             </div>
             <div
               style={{
@@ -341,14 +503,16 @@ export default function BillModal({ order, onClose, onOrderMore }) {
                 marginTop: 4,
               }}
             >
-              <span>Grand Total</span>
-              <span style={{ color: '#e11d48' }}>₹{currentOrder.total}</span>
+              <span>{isCombinedView ? 'Combined Grand Total' : 'Grand Total'}</span>
+              <span style={{ color: '#e11d48' }}>
+                ₹{isCombinedView ? combinedTotal : currentOrder.total}
+              </span>
             </div>
           </div>
 
           {/* Footer Note */}
           <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.72rem', paddingBottom: 4 }}>
-            Thank you for dining at Biggies Restaurant! Please pay the bill at the counter or to your table attendant.
+            Thank you for dining at Biggies Restaurant! You can track live progress or add more dishes anytime.
           </div>
         </div>
 

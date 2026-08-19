@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { onAvailableDishesChange, onCategoriesChange, getStoredDishes, getStoredCategories } from '../../utils/firestore';
+import { onAvailableDishesChange, onCategoriesChange, onOrdersChange, getStoredDishes, getStoredCategories } from '../../utils/firestore';
 import DishCard from '../../components/menu/DishCard';
 import CartDrawer from '../../components/menu/CartDrawer';
 import BillModal from '../../components/menu/BillModal';
@@ -44,7 +44,9 @@ export default function MenuPage() {
   const items = useCartStore((state) => state.items) || [];
   const tableNumber = useCartStore((state) => state.tableNumber) || '1';
   const setTableNumber = useCartStore((state) => state.setTableNumber);
+  const activeOrders = useCartStore((state) => state.activeOrders) || [];
   const activeOrder = useCartStore((state) => state.activeOrder);
+  const syncActiveOrders = useCartStore((state) => state.syncActiveOrders);
 
   const cartList = Array.isArray(items) ? items : [];
   const totalItems = cartList.reduce((sum, i) => sum + (Number(i?.quantity) || 0), 0);
@@ -89,12 +91,19 @@ export default function MenuPage() {
       }
     });
 
+    const unsubscribeOrders = onOrdersChange((allOrders) => {
+      if (isMounted && allOrders && allOrders.length > 0) {
+        syncActiveOrders(allOrders);
+      }
+    });
+
     return () => {
       isMounted = false;
       unsubscribeDishes();
       unsubscribeCategories();
+      unsubscribeOrders();
     };
-  }, []);
+  }, [syncActiveOrders]);
 
   // ── Memoized Visible & Grouped Dishes for ultra fast rendering ───
   const visibleDishes = useMemo(() => {
@@ -245,31 +254,105 @@ export default function MenuPage() {
             <span>{vegOnly ? 'Veg Only' : 'Veg + Non-Veg'}</span>
           </button>
 
-          {/* Active Order / Bill Shortcut button */}
-          {activeOrder && (
+          {/* Active Orders / Bill Shortcut button */}
+          {activeOrders.length > 0 && (
             <button
               onClick={() => setIsBillOpen(true)}
               type="button"
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '6px 12px', borderRadius: 99,
+                padding: '6px 14px', borderRadius: 99,
                 background: '#fff', color: '#be123c',
                 border: 'none', fontWeight: 800, fontSize: '0.75rem',
                 cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               }}
             >
               <span>🧾</span>
-              <span>View Active Bill</span>
+              <span>{activeOrders.length === 1 ? 'Track Order' : `${activeOrders.length} Active Orders`}</span>
+              <span style={{
+                background: '#e11d48',
+                color: '#fff',
+                fontSize: '0.65rem',
+                fontWeight: 900,
+                padding: '1px 6px',
+                borderRadius: 99,
+              }}>
+                {activeOrders.length}
+              </span>
             </button>
           )}
 
-          {!loading && !activeOrder && (
+          {!loading && activeOrders.length === 0 && (
              <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', fontWeight: 600 }}>
                {visibleDishes.length} Dishes
              </div>
           )}
         </div>
       </header>
+
+      {/* ──── ACTIVE ORDERS LIVE TRACKER BANNER ──── */}
+      {activeOrders.length > 0 && (
+        <div
+          onClick={() => setIsBillOpen(true)}
+          style={{
+            margin: '12px 16px 0',
+            background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
+            border: '1.5px solid #fecdd3',
+            borderRadius: 16,
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(225,29,72,0.08)',
+            animation: 'fadeIn 0.3s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, #e11d48, #be123c)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.15rem',
+                boxShadow: '0 3px 10px rgba(225,29,72,0.3)',
+                flexShrink: 0,
+              }}
+            >
+              🔔
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#be123c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {activeOrders.length === 1 ? '1 Active Order in Kitchen' : `${activeOrders.length} Active Orders Tracked`}
+              </div>
+              <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1c1917', lineHeight: 1.2, marginTop: 2 }}>
+                Table #{tableNumber} · Tap to view live receipts & status
+              </div>
+            </div>
+          </div>
+          <div style={{
+            background: '#fff',
+            color: '#e11d48',
+            fontWeight: 800,
+            fontSize: '0.75rem',
+            padding: '5px 10px',
+            borderRadius: 99,
+            border: '1px solid #fecdd3',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            flexShrink: 0,
+          }}>
+            <span>View</span>
+            <span>➔</span>
+          </div>
+        </div>
+      )}
 
       {/* ──── PREMIUM STICKY CATEGORY NAV ──── */}
       <div style={{
@@ -461,9 +544,9 @@ export default function MenuPage() {
         }}
       />
 
-      {isBillOpen && activeOrder && (
+      {isBillOpen && (activeOrders.length > 0 || activeOrder) && (
         <BillModal
-          order={activeOrder}
+          order={activeOrder || activeOrders[0]}
           onClose={() => setIsBillOpen(false)}
           onOrderMore={() => setIsBillOpen(false)}
         />

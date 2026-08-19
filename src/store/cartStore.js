@@ -11,6 +11,7 @@ export const useCartStore = create(
         phone: '',
         notes: '',
       },
+      activeOrders: [],
       activeOrder: null,
       orderHistory: [],
 
@@ -23,17 +24,94 @@ export const useCartStore = create(
           customerInfo: { ...(state.customerInfo || {}), ...info },
         })),
 
-      // Set active order
-      setActiveOrder: (order) => {
+      // Add newly placed order to activeOrders
+      addActiveOrder: (order) => {
+        if (!order) return;
         set((state) => {
+          const prevActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
+          const filtered = prevActive.filter((o) => o?.id !== order.id);
+          const updatedActive = [order, ...filtered];
+
           const prevHistory = Array.isArray(state.orderHistory) ? state.orderHistory : [];
-          const history = prevHistory.filter((o) => o?.id !== order?.id);
+          const history = [order, ...prevHistory.filter((o) => o?.id !== order.id)];
+
           return {
             activeOrder: order,
-            orderHistory: order ? [order, ...history] : history,
+            activeOrders: updatedActive,
+            orderHistory: history,
           };
         });
       },
+
+      // Update specific active order
+      updateActiveOrder: (updatedOrder) => {
+        if (!updatedOrder?.id) return;
+        set((state) => {
+          const prevActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
+          const updatedActive = prevActive.map((o) =>
+            o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o
+          );
+          return {
+            activeOrders: updatedActive,
+            activeOrder: state.activeOrder?.id === updatedOrder.id ? { ...state.activeOrder, ...updatedOrder } : state.activeOrder,
+          };
+        });
+      },
+
+      // Sync active orders with latest database/storage orders
+      syncActiveOrders: (allOrders) => {
+        if (!Array.isArray(allOrders) || allOrders.length === 0) return;
+        set((state) => {
+          const prevActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
+          if (prevActive.length === 0 && !state.activeOrder) return state;
+
+          const activeMap = new Map();
+          prevActive.forEach((o) => {
+            if (o?.id) activeMap.set(o.id, o);
+          });
+          if (state.activeOrder?.id && !activeMap.has(state.activeOrder.id)) {
+            activeMap.set(state.activeOrder.id, state.activeOrder);
+          }
+
+          allOrders.forEach((serverOrder) => {
+            if (serverOrder?.id && activeMap.has(serverOrder.id)) {
+              activeMap.set(serverOrder.id, { ...activeMap.get(serverOrder.id), ...serverOrder });
+            }
+          });
+
+          const syncedList = Array.from(activeMap.values());
+          return {
+            activeOrders: syncedList,
+            activeOrder: state.activeOrder && activeMap.has(state.activeOrder.id)
+              ? activeMap.get(state.activeOrder.id)
+              : (syncedList[0] || null),
+          };
+        });
+      },
+
+      // Set/Select current active order
+      setActiveOrder: (order) => {
+        if (!order) {
+          set({ activeOrder: null });
+          return;
+        }
+        get().addActiveOrder(order);
+      },
+
+      // Dismiss / remove an active order (e.g. when completed and user clears)
+      removeActiveOrder: (orderId) => {
+        set((state) => {
+          const prevActive = Array.isArray(state.activeOrders) ? state.activeOrders : [];
+          const filtered = prevActive.filter((o) => o?.id !== orderId);
+          return {
+            activeOrders: filtered,
+            activeOrder: state.activeOrder?.id === orderId ? (filtered[0] || null) : state.activeOrder,
+          };
+        });
+      },
+
+      // Clear all active orders
+      clearActiveOrders: () => set({ activeOrders: [], activeOrder: null }),
 
       // Add item to cart
       addItem: (dish) => {
@@ -146,6 +224,7 @@ export const useCartStore = create(
         items: Array.isArray(state.items) ? state.items : [],
         tableNumber: state.tableNumber || '1',
         customerInfo: state.customerInfo || { name: '', phone: '', notes: '' },
+        activeOrders: Array.isArray(state.activeOrders) ? state.activeOrders : (state.activeOrder ? [state.activeOrder] : []),
         activeOrder: state.activeOrder || null,
         orderHistory: Array.isArray(state.orderHistory) ? state.orderHistory : [],
       }),
