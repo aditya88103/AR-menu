@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { onAvailableDishesChange, onCategoriesChange, onOrdersChange, fetchOrders, getStoredDishes, getStoredCategories } from '../../utils/firestore';
+import { onAvailableDishesChange, onCategoriesChange, onOrdersChange, fetchOrders, fetchOrdersByPhone, getStoredDishes, getStoredCategories } from '../../utils/firestore';
 import DishCard from '../../components/menu/DishCard';
 import CartDrawer from '../../components/menu/CartDrawer';
 import BillModal from '../../components/menu/BillModal';
@@ -43,6 +43,8 @@ export default function MenuPage() {
   const [isLookupOpen, setIsLookupOpen] = useState(false);
   const [lookupQuery, setLookupQuery]   = useState('');
   const [isSearching, setIsSearching]   = useState(false);
+  const [searchedOrders, setSearchedOrders] = useState(null);
+  const [hasSearched, setHasSearched]   = useState(false);
 
   // Store bindings
   const items = useCartStore((state) => state.items) || [];
@@ -50,6 +52,8 @@ export default function MenuPage() {
   const setTableNumber = useCartStore((state) => state.setTableNumber);
   const activeOrders = useCartStore((state) => state.activeOrders) || [];
   const activeOrder = useCartStore((state) => state.activeOrder);
+  const setActiveOrder = useCartStore((state) => state.setActiveOrder);
+  const addActiveOrder = useCartStore((state) => state.addActiveOrder);
   const syncActiveOrders = useCartStore((state) => state.syncActiveOrders);
   const loadOrdersByCustomer = useCartStore((state) => state.loadOrdersByCustomer);
 
@@ -299,21 +303,26 @@ export default function MenuPage() {
               </button>
             ) : (
               <button
-                onClick={() => setIsLookupOpen(true)}
+                onClick={() => {
+                  setSearchedOrders(null);
+                  setHasSearched(false);
+                  setIsLookupOpen(true);
+                }}
                 type="button"
                 style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  padding: '6px 12px', borderRadius: 99,
-                  background: 'rgba(255,255,255,0.18)',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 99,
+                  background: 'rgba(255,255,255,0.22)',
                   backdropFilter: 'blur(8px)',
                   color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  fontWeight: 700, fontSize: '0.72rem',
+                  border: '1px solid rgba(255,255,255,0.35)',
+                  fontWeight: 800, fontSize: '0.75rem',
                   cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                 }}
               >
-                <span>🔍</span>
-                <span>Track By Phone</span>
+                <span>📱</span>
+                <span>Track By Mobile</span>
               </button>
             )}
           </div>
@@ -582,13 +591,13 @@ export default function MenuPage() {
         />
       )}
 
-      {/* ──── CUSTOMER ORDER LOOKUP MODAL (BY PHONE / NAME) ──── */}
+      {/* ──── CUSTOMER ORDER LOOKUP MODAL (STRICTLY BY MOBILE NUMBER) ──── */}
       {isLookupOpen && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            zIndex: 999999,
+            zIndex: 9999999,
             background: 'rgba(0,0,0,0.75)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
@@ -603,30 +612,36 @@ export default function MenuPage() {
             style={{
               background: '#fff',
               borderRadius: 24,
-              padding: 24,
-              maxWidth: 420,
+              padding: '24px 20px',
+              maxWidth: 480,
               width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
               boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
               animation: 'bounceIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
-                  width: 38, height: 38, borderRadius: 12,
+                  width: 40, height: 40, borderRadius: 12,
                   background: '#fff1f2', color: '#e11d48',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 18,
+                  fontSize: 20, flexShrink: 0,
                 }}>
-                  🔍
+                  📱
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1c1917' }}>
-                    Track Active Orders
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#1c1917' }}>
+                    Track Orders By Mobile
                   </h3>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: '#6b7280' }}>
-                    Find active orders using phone number or name
+                  <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: '#6b7280' }}>
+                    Enter mobile number to view all your database orders
                   </p>
                 </div>
               </div>
@@ -635,51 +650,63 @@ export default function MenuPage() {
                 type="button"
                 style={{
                   background: '#f3f4f6', border: 'none', borderRadius: '50%',
-                  width: 30, height: 30, cursor: 'pointer', fontWeight: 800,
-                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 32, height: 32, cursor: 'pointer', fontWeight: 800,
+                  fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#4b5563',
                 }}
               >✕</button>
             </div>
 
+            {/* Search Input Form */}
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
-                if (!lookupQuery.trim()) {
-                  toast.error('Please enter your phone number or name');
+                const cleanPhone = String(lookupQuery).trim().replace(/\D/g, '');
+                if (cleanPhone.length < 4) {
+                  toast.error('Please enter a valid mobile number (at least 4-10 digits)');
                   return;
                 }
                 setIsSearching(true);
-                const toastId = toast.loading('Searching active orders...');
                 try {
-                  const all = await fetchOrders();
-                  const found = loadOrdersByCustomer(lookupQuery, all);
+                  const found = await fetchOrdersByPhone(cleanPhone);
+                  setSearchedOrders(found || []);
+                  setHasSearched(true);
                   if (found && found.length > 0) {
-                    toast.success(`Found ${found.length} active order(s)! 🎉`, { id: toastId });
-                    setIsLookupOpen(false);
-                    setIsBillOpen(true);
-                  } else {
-                    toast.error('No ongoing orders found for this phone number or name.', { id: toastId });
+                    toast.success(`Found ${found.length} order(s) for ${cleanPhone}! 🎉`);
                   }
                 } catch (err) {
-                  toast.error('Failed to lookup orders. Please try again.', { id: toastId });
+                  toast.error('Failed to search database orders.');
                 } finally {
                   setIsSearching(false);
                 }
               }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
             >
-              <div style={{ marginBottom: 14 }}>
+              <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#374151', marginBottom: 6 }}>
-                  Customer Phone Number / Name:
+                  Customer Mobile Number:
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 9876543210 or Aditya"
-                  value={lookupQuery}
-                  onChange={(e) => setLookupQuery(e.target.value)}
-                  className="admin-input"
-                  style={{ fontSize: '0.9rem', padding: '12px 14px', borderRadius: 12 }}
-                  autoFocus
-                />
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>📞</span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="Enter mobile number (e.g. 8810328594)"
+                    value={lookupQuery}
+                    onChange={(e) => setLookupQuery(e.target.value)}
+                    className="admin-input"
+                    style={{
+                      width: '100%',
+                      fontSize: '0.95rem',
+                      fontWeight: 700,
+                      padding: '13px 14px 13px 42px',
+                      borderRadius: 14,
+                      border: '1.5px solid #d1d5db',
+                      background: '#fff',
+                    }}
+                    autoFocus
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
@@ -694,35 +721,131 @@ export default function MenuPage() {
                     color: '#fff',
                     border: 'none',
                     fontWeight: 800,
-                    fontSize: '0.88rem',
+                    fontSize: '0.9rem',
                     cursor: isSearching ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 12px rgba(225,29,72,0.3)',
+                    boxShadow: '0 4px 14px rgba(225,29,72,0.3)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 6,
                   }}
                 >
-                  {isSearching ? 'Searching...' : '🔍 Find My Orders'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsLookupOpen(false)}
-                  style={{
-                    padding: '13px 18px',
-                    borderRadius: 12,
-                    background: '#f3f4f6',
-                    color: '#374151',
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: '0.88rem',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancel
+                  {isSearching ? 'Searching Database...' : '🔍 Find All Orders'}
                 </button>
               </div>
             </form>
+
+            {/* In-Modal Search Results List */}
+            {hasSearched && (
+              <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1c1917' }}>
+                    {searchedOrders && searchedOrders.length > 0
+                      ? `Found ${searchedOrders.length} Order(s)`
+                      : 'No Orders Found'}
+                  </span>
+                  {searchedOrders && searchedOrders.length > 0 && (
+                    <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>Tap card to view full bill</span>
+                  )}
+                </div>
+
+                {searchedOrders && searchedOrders.length === 0 ? (
+                  <div style={{
+                    padding: '24px 16px',
+                    background: '#f9fafb',
+                    borderRadius: 14,
+                    textAlign: 'center',
+                    border: '1px dashed #d1d5db',
+                  }}>
+                    <div style={{ fontSize: 32, marginBottom: 6 }}>🔍</div>
+                    <div style={{ fontWeight: 800, color: '#374151', fontSize: '0.88rem' }}>
+                      No orders found for this mobile number
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 3 }}>
+                      Please verify your number or place a new order from your table.
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+                    {(searchedOrders || []).map((ord) => {
+                      const isCompleted = ord.status === 'completed';
+                      const isPreparing = ord.status === 'preparing';
+                      const isServed = ord.status === 'served';
+                      
+                      let statusBadge = { label: '⏳ Received', bg: '#fff1f2', text: '#be123c', border: '#fecdd3' };
+                      if (isPreparing) statusBadge = { label: '👨‍🍳 In Kitchen', bg: '#fef3c7', text: '#b45309', border: '#fde68a' };
+                      if (isServed) statusBadge = { label: '🍽️ Served', bg: '#e0f2fe', text: '#0369a1', border: '#bae6fd' };
+                      if (isCompleted) statusBadge = { label: '💳 Bill Paid', bg: '#dcfce7', text: '#15803d', border: '#bbf7d0' };
+
+                      const itemsSummary = (ord.items || []).map((i) => `${i.name} (x${i.quantity})`).join(', ');
+
+                      return (
+                        <div
+                          key={ord.id}
+                          onClick={() => {
+                            addActiveOrder(ord);
+                            setActiveOrder(ord);
+                            setIsLookupOpen(false);
+                            setIsBillOpen(true);
+                          }}
+                          style={{
+                            background: '#f9fafb',
+                            border: `1.5px solid ${isCompleted ? '#e5e7eb' : '#fecdd3'}`,
+                            borderRadius: 14,
+                            padding: '12px 14px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 6,
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <span style={{ fontWeight: 900, color: '#1c1917', fontSize: '0.88rem' }}>
+                                {ord.order_number}
+                              </span>
+                              <span style={{ marginLeft: 8, fontSize: '0.75rem', fontWeight: 800, color: '#e11d48', background: '#fff1f2', padding: '2px 8px', borderRadius: 99 }}>
+                                Table #{ord.table_number}
+                              </span>
+                            </div>
+                            <span style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              color: statusBadge.text,
+                              background: statusBadge.bg,
+                              border: `1px solid ${statusBadge.border}`,
+                              padding: '2px 8px',
+                              borderRadius: 99,
+                            }}>
+                              {statusBadge.label}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '0.75rem', color: '#4b5563', lineHeight: 1.3 }}>
+                            {itemsSummary || 'Dishes ordered'}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px dashed #e5e7eb', paddingTop: 6, marginTop: 2 }}>
+                            <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
+                              {ord.created_at ? new Date(ord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 900, color: '#1c1917', fontSize: '0.92rem' }}>
+                                ₹{ord.total}
+                              </span>
+                              <span style={{ fontSize: '0.75rem', color: '#e11d48', fontWeight: 800 }}>
+                                View Receipt ➔
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

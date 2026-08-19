@@ -571,6 +571,19 @@ export async function fetchOrders() {
   return local;
 }
 
+export async function fetchOrdersByPhone(phoneQuery) {
+  if (!phoneQuery) return [];
+  const clean = String(phoneQuery).replace(/\D/g, '');
+  const all = await fetchOrders();
+  if (!Array.isArray(all)) return [];
+
+  return all.filter((o) => {
+    const oPhone = String(o.customer_phone || '').replace(/\D/g, '');
+    if (!oPhone) return false;
+    return (clean.length >= 4 && oPhone.includes(clean)) || (oPhone.length >= 4 && clean.includes(oPhone));
+  });
+}
+
 export function onOrdersChange(callback) {
   let isSubscribed = true;
 
