@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { fetchCategories, addDish, updateDish, fetchDishes, uploadFile } from '../../utils/firestore';
+import { fetchCategories, addDish, updateDish, fetchDishes, uploadFile, getStoredCategories, getStoredDishes } from '../../utils/firestore';
 import toast from 'react-hot-toast';
 
 const EMPTY_FORM = { name: '', price: '', description: '', category: '', isVeg: null }; // isVeg null = not yet selected
@@ -297,22 +297,58 @@ export default function DishForm() {
   const isEdit   = Boolean(id);
   const navigate = useNavigate();
 
-  const [form, setForm]             = useState(EMPTY_FORM);
-  const [categories, setCategories] = useState([]);
+  const [form, setForm]             = useState(() => {
+    if (isEdit) {
+      const dishes = getStoredDishes();
+      const dish = dishes.find(d => d.id === id);
+      if (dish) {
+        const isVeg = dish.isVeg !== undefined ? dish.isVeg : dish.isveg;
+        return {
+          name: dish.name || '',
+          price: dish.price || '',
+          description: dish.description || '',
+          category: dish.category || '',
+          isVeg: isVeg === true ? true : isVeg === false ? false : null,
+        };
+      }
+    }
+    return EMPTY_FORM;
+  });
+  const [categories, setCategories] = useState(() => getStoredCategories());
   const [imageFile, setImageFile]   = useState(null);
-  const [imageUrl, setImageUrl]     = useState('');
+  const [imageUrl, setImageUrl]     = useState(() => {
+    if (isEdit) {
+      const dish = getStoredDishes().find(d => d.id === id);
+      return dish?.imageURL || dish?.imageurl || '';
+    }
+    return '';
+  });
   const [modelFile, setModelFile]   = useState(null);
-  const [modelUrl, setModelUrl]     = useState('');
-  const [existingData, setExisting] = useState({});
+  const [modelUrl, setModelUrl]     = useState(() => {
+    if (isEdit) {
+      const dish = getStoredDishes().find(d => d.id === id);
+      return dish?.modelURL || dish?.modelurl || '';
+    }
+    return '';
+  });
+  const [existingData, setExisting] = useState(() => {
+    if (isEdit) {
+      const dish = getStoredDishes().find(d => d.id === id);
+      return dish || {};
+    }
+    return {};
+  });
   const [saving, setSaving]         = useState(false);
 
   useEffect(() => {
-    fetchCategories().then(setCategories);
+    fetchCategories().then(c => {
+      if (c && c.length > 0) setCategories(c);
+    });
+
     if (isEdit) {
       fetchDishes().then(dishes => {
         const dish = dishes.find(d => d.id === id);
         if (dish) {
-          // Handle both column name cases
           const isVeg = dish.isVeg !== undefined ? dish.isVeg : dish.isveg;
           const imageURL = dish.imageURL || dish.imageurl || '';
           const modelURL = dish.modelURL || dish.modelurl || '';
@@ -329,10 +365,8 @@ export default function DishForm() {
             imageURL, 
             modelURL 
           });
-          setImageUrl(imageURL); // Set initial image URL
-          setModelUrl(modelURL); // Set initial model URL
-          
-          console.log('📝 Loaded dish for editing:', { name: dish.name, imageURL, modelURL });
+          setImageUrl(imageURL);
+          setModelUrl(modelURL);
         }
       });
     }

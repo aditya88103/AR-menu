@@ -1,31 +1,37 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ARModal from './ARModal';
+import { useCartStore } from '../../store/cartStore';
 
-/* Lazy-load image with blur-up + skeleton */
+/* Fast image with native lazy loading and smooth fallback */
 function LazyImage({ src, alt }) {
-  const imgRef  = useRef();
   const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!imgRef.current) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting && imgRef.current) imgRef.current.src = src; },
-      { rootMargin: '120px' }
-    );
-    obs.observe(imgRef.current);
-    return () => obs.disconnect();
-  }, [src]);
+  const [error, setError] = useState(false);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#fef2f2', overflow: 'hidden' }}>
-      <img
-        ref={imgRef}
-        alt={alt}
-        className={`img-blur-up ${loaded ? 'loaded' : ''}`}
-        onLoad={() => setLoaded(true)}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-      />
-      {!loaded && <div className="skeleton" style={{ position: 'absolute', inset: 0 }} />}
+      {!error ? (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => setError(true)}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+            opacity: loaded ? 1 : 0.4,
+            transition: 'opacity 0.2s ease',
+          }}
+        />
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 32, background: '#fef2f2' }}>
+          🍽️
+        </div>
+      )}
+      {!loaded && !error && <div className="skeleton" style={{ position: 'absolute', inset: 0 }} />}
     </div>
   );
 }
@@ -33,34 +39,44 @@ function LazyImage({ src, alt }) {
 /* Floating "3D AR" badge on image */
 function ARBadge() {
   return (
-    <div style={{
-      position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)',
-      background: 'linear-gradient(135deg, rgba(0,0,0,0.75), rgba(0,0,20,0.85))',
-      backdropFilter: 'blur(8px)',
-      color: '#fff', fontSize: '0.58rem', fontWeight: 800,
-      padding: '3px 9px', borderRadius: 99,
-      letterSpacing: '0.08em',
-      border: '1px solid rgba(255,255,255,0.2)',
-      whiteSpace: 'nowrap',
-      boxShadow: '0 2px 12px rgba(225,29,72,0.4)',
-      display: 'flex', alignItems: 'center', gap: 4,
-      animation: 'float-badge 3s ease-in-out infinite',
-    }}>
-      {/* Animated dot */}
-      <span style={{
-        width: 5, height: 5, borderRadius: '50%',
-        background: '#e11d48',
-        display: 'inline-block',
-        boxShadow: '0 0 6px #e11d48',
-        animation: 'pulse-dot 1.2s ease-in-out infinite',
-        flexShrink: 0,
-      }} />
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 6,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'linear-gradient(135deg, rgba(0,0,0,0.85), rgba(30,0,15,0.92))',
+        backdropFilter: 'blur(8px)',
+        color: '#fff',
+        fontSize: '0.58rem',
+        fontWeight: 800,
+        padding: '3px 9px',
+        borderRadius: 99,
+        letterSpacing: '0.06em',
+        border: '1px solid rgba(255,255,255,0.25)',
+        whiteSpace: 'nowrap',
+        boxShadow: '0 2px 12px rgba(225,29,72,0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+      }}
+    >
+      <span
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: '50%',
+          background: '#e11d48',
+          display: 'inline-block',
+          boxShadow: '0 0 6px #e11d48',
+        }}
+      />
       ✨ 3D AR
     </div>
   );
 }
 
-/* Gradient "Try on Table" button with shimmer sweep */
+/* Gradient "Try on Table" button */
 function TryOnTableBtn({ onClick }) {
   const [hovered, setHovered] = useState(false);
 
@@ -73,49 +89,159 @@ function TryOnTableBtn({ onClick }) {
   return (
     <button
       onClick={handleClick}
-      onTouchEnd={handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      type="button"
       style={{
-        alignSelf: 'flex-start',
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '7px 16px', borderRadius: 99,
-        fontSize: '0.72rem', fontWeight: 800,
-        border: 'none', cursor: 'pointer',
-        background: hovered
-          ? 'linear-gradient(135deg, #f43f5e, #be123c)'
-          : 'linear-gradient(135deg, #e11d48, #9f1239)',
-        color: '#fff',
-        boxShadow: hovered
-          ? '0 6px 24px rgba(225,29,72,0.6)'
-          : '0 3px 12px rgba(225,29,72,0.35)',
-        transform: hovered ? 'translateY(-1px) scale(1.02)' : 'translateY(0) scale(1)',
-        transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '6px 12px',
+        borderRadius: 99,
+        fontSize: '0.7rem',
+        fontWeight: 800,
+        border: '1.5px solid rgba(225,29,72,0.3)',
+        cursor: 'pointer',
+        background: hovered ? 'linear-gradient(135deg, #ffe4e6, #fff1f2)' : '#fff',
+        color: '#be123c',
+        boxShadow: hovered ? '0 4px 14px rgba(225,29,72,0.2)' : '0 1px 4px rgba(0,0,0,0.03)',
+        transform: hovered ? 'scale(1.02)' : 'scale(1)',
+        transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
         fontFamily: 'Inter, sans-serif',
-        letterSpacing: '-0.01em',
-        position: 'relative',
-        overflow: 'hidden',
-        touchAction: 'manipulation',
+        whiteSpace: 'nowrap',
       }}
     >
-      {/* Shimmer sweep */}
-      <span style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%)',
-        backgroundSize: '200% 100%',
-        animation: 'btn-shimmer 2.5s ease-in-out infinite',
-        borderRadius: 'inherit',
-        pointerEvents: 'none',
-      }} />
-      <span style={{ fontSize: 13, filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))', zIndex: 1 }}>🪄</span>
-      <span style={{ zIndex: 1 }}>Try on Table</span>
+      <span style={{ fontSize: 12 }}>🪄</span>
+      <span>Try on Table</span>
+    </button>
+  );
+}
+
+/* Add to Cart / Quantity Stepper */
+function AddToCartBtn({ dish }) {
+  const items = useCartStore((state) => state.items);
+  const addItem = useCartStore((state) => state.addItem);
+  const removeItem = useCartStore((state) => state.removeItem);
+
+  const currentItem = items.find((i) => i.id === dish.id);
+  const quantity = currentItem ? currentItem.quantity : 0;
+
+  if (quantity > 0) {
+    return (
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          background: 'linear-gradient(135deg, #e11d48, #be123c)',
+          borderRadius: 99,
+          padding: '2px 4px',
+          boxShadow: '0 4px 14px rgba(225,29,72,0.35)',
+          gap: 6,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => removeItem(dish.id)}
+          type="button"
+          aria-label="Decrease quantity"
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.25)',
+            border: 'none',
+            color: '#fff',
+            fontWeight: 900,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.15s',
+          }}
+        >
+          -
+        </button>
+        <span
+          style={{
+            color: '#fff',
+            fontWeight: 900,
+            fontSize: '0.85rem',
+            minWidth: 16,
+            textAlign: 'center',
+          }}
+        >
+          {quantity}
+        </span>
+        <button
+          onClick={() => addItem(dish)}
+          type="button"
+          aria-label="Increase quantity"
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            background: '#fff',
+            border: 'none',
+            color: '#be123c',
+            fontWeight: 900,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            transition: 'transform 0.15s',
+          }}
+        >
+          +
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addItem(dish);
+      }}
+      type="button"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '7px 16px',
+        borderRadius: 99,
+        background: 'linear-gradient(135deg, #e11d48, #be123c)',
+        color: '#fff',
+        border: 'none',
+        fontWeight: 800,
+        fontSize: '0.78rem',
+        cursor: 'pointer',
+        boxShadow: '0 3px 12px rgba(225,29,72,0.3)',
+        transition: 'all 0.2s ease',
+        whiteSpace: 'nowrap',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-1px) scale(1.03)';
+        e.currentTarget.style.boxShadow = '0 6px 18px rgba(225,29,72,0.45)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0) scale(1)';
+        e.currentTarget.style.boxShadow = '0 3px 12px rgba(225,29,72,0.3)';
+      }}
+    >
+      <span>+</span>
+      <span>Add</span>
     </button>
   );
 }
 
 export default function DishCard({ dish, accentColor = '#e11d48' }) {
   const [showAR, setShowAR] = useState(false);
-  
+
   // Handle both column name cases
   const isVeg = dish.isVeg !== undefined ? dish.isVeg : dish.isveg;
   const imageURL = dish.imageURL || dish.imageurl || '';
@@ -127,87 +253,134 @@ export default function DishCard({ dish, accentColor = '#e11d48' }) {
         style={{
           background: '#fff',
           borderRadius: 20,
-          boxShadow: '0 2px 16px rgba(0,0,0,0.05)',
-          border: '1px solid rgba(0,0,0,0.04)',
+          boxShadow: '0 2px 14px rgba(0,0,0,0.05)',
+          border: '1px solid rgba(0,0,0,0.05)',
           transition: 'transform 0.25s ease, box-shadow 0.25s ease',
-          display: 'flex', flexDirection: 'row',
-          padding: 12, gap: 14,
+          display: 'flex',
+          flexDirection: 'row',
+          padding: 12,
+          gap: 14,
           position: 'relative',
         }}
-        onMouseEnter={e => {
+        onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'translateY(-3px)';
-          e.currentTarget.style.boxShadow = `0 12px 32px rgba(225,29,72,0.1)`;
+          e.currentTarget.style.boxShadow = `0 12px 28px rgba(225,29,72,0.12)`;
         }}
-        onMouseLeave={e => {
+        onMouseLeave={(e) => {
           e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = '0 2px 16px rgba(0,0,0,0.05)';
+          e.currentTarget.style.boxShadow = '0 2px 14px rgba(0,0,0,0.05)';
         }}
       >
         {/* Left: Image + AR badge */}
-        <div style={{
-          width: 110, height: 110, borderRadius: 14,
-          overflow: 'hidden', position: 'relative',
-          flexShrink: 0,
-          boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
-        }}>
-          {imageURL
-            ? <LazyImage src={imageURL} alt={dish.name} />
-            : (
-              <div style={{
-                width: '100%', height: '100%',
+        <div
+          style={{
+            width: 110,
+            height: 110,
+            borderRadius: 16,
+            overflow: 'hidden',
+            position: 'relative',
+            flexShrink: 0,
+            boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+          }}
+        >
+          {imageURL ? (
+            <LazyImage src={imageURL} alt={dish.name} />
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
                 background: 'linear-gradient(135deg, #fef2f2, #fecdd3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 fontSize: 36,
-              }}>🍽️</div>
-            )
-          }
+              }}
+            >
+              🍽️
+            </div>
+          )}
           {modelURL && <ARBadge />}
         </div>
 
         {/* Right: Info */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 0 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 2 }}>
+              {/* Veg / Non-Veg Indicator Dot */}
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 15,
+                  height: 15,
+                  borderRadius: 4,
+                  flexShrink: 0,
+                  marginTop: 2,
+                  border: `1.5px solid ${isVeg === true ? '#16a34a' : '#dc2626'}`,
+                  background: isVeg === true ? '#f0fdf4' : '#fef2f2',
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: isVeg === true ? '#16a34a' : '#dc2626',
+                    display: 'block',
+                  }}
+                />
+              </span>
+              <h3
+                style={{
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  color: '#1c1917',
+                  lineHeight: 1.3,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  margin: 0,
+                  flex: 1,
+                }}
+              >
+                {dish.name}
+              </h3>
+            </div>
 
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 2 }}>
-            {/* Veg/Non-Veg dot */}
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 14, height: 14, borderRadius: 3, flexShrink: 0, marginTop: 3,
-              border: `1.5px solid ${isVeg === true ? '#16a34a' : '#dc2626'}`,
-            }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: isVeg === true ? '#16a34a' : '#dc2626',
-                display: 'block',
-              }} />
-            </span>
-            <h3 style={{
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 700, fontSize: '0.95rem',
-              color: '#1c1917', lineHeight: 1.3,
-              display: '-webkit-box', WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical', overflow: 'hidden',
-              margin: 0, flex: 1,
-            }}>
-              {dish.name}
-            </h3>
+            <div style={{ fontWeight: 900, color: '#e11d48', fontSize: '1rem', marginBottom: 4, letterSpacing: '-0.02em' }}>
+              ₹{dish.price}
+            </div>
+
+            {dish.description && (
+              <p
+                style={{
+                  fontSize: '0.72rem',
+                  color: '#6b7280',
+                  lineHeight: 1.4,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  marginBottom: 8,
+                  margin: '0 0 8px',
+                }}
+              >
+                {dish.description}
+              </p>
+            )}
           </div>
 
-          <div style={{ fontWeight: 800, color: '#1c1917', fontSize: '0.95rem', marginBottom: 5 }}>
-            ₹{dish.price}
+          {/* Action Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
+            {modelURL ? (
+              <TryOnTableBtn onClick={() => setShowAR(true)} />
+            ) : <div />}
+            <AddToCartBtn dish={dish} />
           </div>
-
-          {dish.description && (
-            <p style={{
-              fontSize: '0.72rem', color: '#6b7280', lineHeight: 1.4,
-              display: '-webkit-box', WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical', overflow: 'hidden',
-              marginBottom: 10, margin: '0 0 10px',
-            }}>
-              {dish.description}
-            </p>
-          )}
-
-          {modelURL && <TryOnTableBtn onClick={() => setShowAR(true)} />}
         </div>
       </div>
 
@@ -215,6 +388,9 @@ export default function DishCard({ dish, accentColor = '#e11d48' }) {
         <ARModal
           modelUrl={modelURL}
           dishName={dish.name}
+          dishPrice={dish.price}
+          dishImage={imageURL}
+          isVeg={isVeg}
           onClose={() => setShowAR(false)}
         />
       )}

@@ -1,20 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { logout } from '../../hooks/useAuth';
+import { onOrdersChange, getStoredOrders } from '../../utils/firestore';
+
 // Biggies brand colours
 const BRAND = 'linear-gradient(135deg,#e11d48,#b91c1c)';
 
 const NAV_ITEMS = [
   { path: '/admin', label: 'Dashboard', icon: '🏠', exact: true },
+  { path: '/admin/orders', label: 'Orders', icon: '🧾', showBadge: true },
   { path: '/admin/dishes', label: 'Dishes', icon: '🍽️' },
   { path: '/admin/categories', label: 'Categories', icon: '📂' },
-  { path: '/admin/qr', label: 'QR Code', icon: '📱' },
+  { path: '/admin/qr', label: 'QR Codes', icon: '📱' },
   { path: '/admin/settings', label: 'Settings', icon: '⚙️' },
 ];
 
 export default function AdminLayout({ children, title }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [pendingCount, setPendingCount] = useState(() => {
+    return getStoredOrders().filter((o) => o.status === 'pending').length;
+  });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubscribe = onOrdersChange((orders) => {
+      if (orders) {
+        const pending = orders.filter((o) => o.status === 'pending').length;
+        setPendingCount(pending);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const handleLogout = () => {
     logout();
     navigate('/admin/login');
@@ -62,9 +79,26 @@ export default function AdminLayout({ children, title }) {
               end={item.exact}
               className={({ isActive }) => `sidebar-link ${isActive ? 'active biggies-active' : ''}`}
               title={!sidebarOpen ? item.label : undefined}
+              style={{ position: 'relative' }}
             >
               <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
               {sidebarOpen && <span>{item.label}</span>}
+              {item.showBadge && pendingCount > 0 && (
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    background: '#e11d48',
+                    color: '#fff',
+                    fontSize: '0.7rem',
+                    fontWeight: 800,
+                    padding: '2px 7px',
+                    borderRadius: 99,
+                    boxShadow: '0 2px 6px rgba(225,29,72,0.4)',
+                  }}
+                >
+                  {pendingCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -102,9 +136,33 @@ export default function AdminLayout({ children, title }) {
         {/* Header */}
         <header className="admin-header">
           <h1 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1c1917', letterSpacing: '-0.02em' }}>{title}</h1>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6, background: '#f3f4f6', padding: '4px 10px', borderRadius: 99 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
-            Live
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {pendingCount > 0 && (
+              <NavLink
+                to="/admin/orders"
+                style={{
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#fff1f2',
+                  border: '1px solid #fecdd3',
+                  padding: '4px 10px',
+                  borderRadius: 99,
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  color: '#be123c',
+                  animation: 'pulse-dot 1.5s infinite',
+                }}
+              >
+                <span>🔔</span>
+                <span>{pendingCount} New Orders</span>
+              </NavLink>
+            )}
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6, background: '#f3f4f6', padding: '4px 10px', borderRadius: 99 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
+              Live
+            </div>
           </div>
         </header>
 
@@ -132,11 +190,33 @@ export default function AdminLayout({ children, title }) {
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                 fontSize: '0.65rem', fontWeight: 600, padding: '4px 8px',
                 color: isActive ? '#e11d48' : '#6b7280', textDecoration: 'none',
-                borderRadius: 8, background: isActive ? '#fff1f2' : 'transparent'
+                borderRadius: 8, background: isActive ? '#fff1f2' : 'transparent',
+                position: 'relative',
               })}
             >
               <span style={{ fontSize: 20 }}>{item.icon}</span>
               {item.label}
+              {item.showBadge && pendingCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    right: 8,
+                    background: '#e11d48',
+                    color: '#fff',
+                    fontSize: '0.55rem',
+                    fontWeight: 900,
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {pendingCount}
+                </span>
+              )}
             </NavLink>
           ))}
           <button

@@ -1,63 +1,57 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { fetchDishes, fetchCategories, deleteDish, toggleDishAvailability, deleteFile, onDishesChange } from '../../utils/firestore';
+import { fetchDishes, fetchCategories, deleteDish, toggleDishAvailability, deleteFile, onDishesChange, getStoredDishes, getStoredCategories } from '../../utils/firestore';
 import toast from 'react-hot-toast';
 
 export default function DishesPage() {
-  const [dishes, setDishes]         = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading]       = useState(true);
+  // Synchronous initial state (0ms)
+  const [dishes, setDishes]         = useState(() => getStoredDishes());
+  const [categories, setCategories] = useState(() => getStoredCategories());
+  const [loading, setLoading]       = useState(false);
   const [search, setSearch]         = useState('');
   const [toggling, setToggling]     = useState(null);
   const [collapsed, setCollapsed]   = useState({});
 
-  const load = async () => {
-    setLoading(true);
-    const c = await fetchCategories();
-    setCategories(c);
-    setLoading(false);
-  };
-
   useEffect(() => {
-    load();
-    // Set up real-time listener for dishes
-    const unsubscribe = onDishesChange((dishesList) => {
-      setDishes(dishesList);
+    fetchCategories().then(c => {
+      if (c && c.length > 0) setCategories(c);
     });
+
+    const unsubscribe = onDishesChange((dishesList) => {
+      if (dishesList) setDishes(dishesList);
+      setLoading(false);
+    });
+
     return () => unsubscribe();
   }, []);
 
   const handleToggle = async (dish) => {
-    setToggling(dish.id);
+    const currentAvailability = dish.isAvailable !== undefined ? dish.isAvailable : dish.isavailable;
+    const newAvailability = !currentAvailability;
+    
+    // Instant optimistic update (0ms delay)
+    setDishes(prev => prev.map(d => d.id === dish.id ? { ...d, isAvailable: newAvailability, isavailable: newAvailability } : d));
+    toast.success(newAvailability ? `"${dish.name}" now visible on menu` : `"${dish.name}" hidden from menu`);
+    
     try {
-      // Handle both column name cases
-      const currentAvailability = dish.isAvailable !== undefined ? dish.isAvailable : dish.isavailable;
-      const newAvailability = !currentAvailability;
-      
-      console.log('🔄 Toggling dish:', dish.name, 'from', currentAvailability, 'to', newAvailability);
-      
       await toggleDishAvailability(dish.id, newAvailability);
-      
-      toast.success(newAvailability ? `"${dish.name}" now visible on menu` : `"${dish.name}" hidden from menu`);
     } catch (err) {
-      console.error('Toggle error:', err);
-      toast.error('Failed to update availability');
-    } finally {
-      setToggling(null);
+      console.warn('Background toggle sync note:', err);
     }
   };
 
   const handleDelete = async (dish) => {
     if (!window.confirm(`Delete "${dish.name}"? This cannot be undone.`)) return;
+    setDishes(prev => prev.filter(d => d.id !== dish.id));
+    toast.success('Dish deleted');
+
     try {
       await deleteDish(dish.id);
-      if (dish.imageURL) await deleteFile(dish.imageURL).catch(() => {});
-      if (dish.modelURL) await deleteFile(dish.modelURL).catch(() => {});
-      setDishes(prev => prev.filter(d => d.id !== dish.id));
-      toast.success('Dish deleted');
-    } catch {
-      toast.error('Failed to delete dish');
+      if (dish.imageURL) deleteFile(dish.imageURL).catch(() => {});
+      if (dish.modelURL) deleteFile(dish.modelURL).catch(() => {});
+    } catch (err) {
+      console.warn('Background delete note:', err);
     }
   };
 

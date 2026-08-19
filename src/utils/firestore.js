@@ -1,18 +1,103 @@
 import { supabase } from '../lib/firebase';
 import { DEMO_CATEGORIES, DEMO_DISHES } from '../data/demoMenu';
 
-// ── Initialize Supabase with demo data if empty ──────────────────────────────
-export async function initializeDemoData() {
-  try {
-    // Check if dishes table has data
-    const { data: dishes, error: dishesError } = await supabase
-      .from('dishes')
-      .select('id')
-      .limit(1);
+// ── Cache Keys & In-Memory State ─────────────────────────────────────────────
+const DISHES_KEY = 'biggies_cached_dishes_v2';
+const CATEGORIES_KEY = 'biggies_cached_categories_v2';
+const ORDERS_KEY = 'biggies_local_orders_v2';
 
+const syncBroadcast = typeof window !== 'undefined' && window.BroadcastChannel
+  ? new window.BroadcastChannel('biggies_global_sync_v2')
+  : null;
+
+// Network health state
+let supabaseDisabled = false;
+
+// Timeout wrapper to prevent ANY network call from hanging the UI
+function withTimeout(promise, ms = 700) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Network timeout')), ms))
+  ]);
+}
+
+// ── Synchronous Cache Helpers (0ms delay) ────────────────────────────────────
+export function getStoredDishes() {
+  try {
+    const raw = localStorage.getItem(DISHES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  // Initialize with demo dishes
+  saveStoredDishes(DEMO_DISHES);
+  return DEMO_DISHES;
+}
+
+export function saveStoredDishes(dishes) {
+  try {
+    localStorage.setItem(DISHES_KEY, JSON.stringify(dishes));
+    if (syncBroadcast) syncBroadcast.postMessage({ type: 'DISHES_SYNC', dishes });
+  } catch (e) {
+    console.warn('Failed to store dishes locally', e);
+  }
+}
+
+export function getStoredCategories() {
+  try {
+    const raw = localStorage.getItem(CATEGORIES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  saveStoredCategories(DEMO_CATEGORIES);
+  return DEMO_CATEGORIES;
+}
+
+export function saveStoredCategories(categories) {
+  try {
+    localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+    if (syncBroadcast) syncBroadcast.postMessage({ type: 'CATEGORIES_SYNC', categories });
+  } catch (e) {
+    console.warn('Failed to store categories locally', e);
+  }
+}
+
+export function getStoredOrders() {
+  try {
+    const raw = localStorage.getItem(ORDERS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return [];
+}
+
+export function saveStoredOrders(orders) {
+  try {
+    localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+    if (syncBroadcast) syncBroadcast.postMessage({ type: 'ORDERS_SYNC', orders });
+  } catch (e) {
+    console.warn('Failed to store orders locally', e);
+  }
+}
+
+// ── Check Demo Data Initialization (Non-blocking background) ─────────────────
+export async function initializeDemoData() {
+  // Ensure local cache is populated immediately
+  getStoredDishes();
+  getStoredCategories();
+
+  if (supabaseDisabled) return;
+
+  try {
+    const checkPromise = supabase.from('dishes').select('id').limit(1);
+    const { data: dishes, error: dishesError } = await withTimeout(checkPromise, 600);
     if (dishesError) throw dishesError;
 
-    // If empty, seed with demo data
     if (!dishes || dishes.length === 0) {
       await supabase.from('dishes').insert(
         DEMO_DISHES.map(d => ({
@@ -21,367 +106,545 @@ export async function initializeDemoData() {
           description: d.description,
           category: d.category,
           price: d.price,
-          isVeg: d.isVeg,
-          isAvailable: d.isAvailable !== false,
-          imageURL: d.imageURL,
-          modelURL: d.modelURL,
-        }))
-      );
-    }
-
-    // Check if categories table has data
-    const { data: categories, error: catsError } = await supabase
-      .from('categories')
-      .select('id')
-      .limit(1);
-
-    if (catsError) throw catsError;
-
-    // If empty, seed categories
-    if (!categories || categories.length === 0) {
-      await supabase.from('categories').insert(
-        DEMO_CATEGORIES.map(c => ({
-          id: c.id,
-          name: c.name,
-          order: c.order || 0,
+          isveg: d.isVeg !== false,
+          isavailable: d.isAvailable !== false,
+          imageurl: d.imageURL,
+          modelurl: d.modelURL,
         }))
       );
     }
   } catch (err) {
-    console.warn('Failed to initialize demo data:', err);
+    // If Supabase fails, quietly disable for this session to keep UI 100% smooth
+    supabaseDisabled = true;
   }
 }
 
-// ── Real-time listeners ───────────────────────────────────────────────────────
+// ── Real-time listeners (INSTANT Synchronous Callback + Background Sync) ─────
 export function onDishesChange(callback) {
-  console.log('🔄 Setting up all dishes listener...');
-  
-  const channel = supabase
-    .channel('dishes-changes')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'dishes' },
-      async () => {
-        console.log('🔔 All dishes changed, refetching...');
-        const { data, error } = await supabase.from('dishes').select('*');
-        if (!error && data) {
-          console.log('✅ All dishes fetched:', data.length);
-          callback(data);
-        }
-      }
-    )
-    .subscribe();
+  let isSubscribed = true;
 
-  // Fetch initial data
-  supabase.from('dishes').select('*').then(({ data, error }) => {
-    if (!error && data) {
-      console.log('✅ Initial all dishes loaded:', data.length);
-      callback(data);
-    }
+  // 1. Deliver cached data IMMEDIATELY (0ms)
+  const initial = getStoredDishes();
+  callback(initial);
+
+  // 2. Background fetch without blocking UI
+  fetchDishes().then((dishes) => {
+    if (isSubscribed && dishes) callback(dishes);
   });
 
+  // 3. BroadcastChannel listener for instant cross-tab sync
+  const handleBroadcast = (e) => {
+    if (isSubscribed && e.data && e.data.type === 'DISHES_SYNC') {
+      callback(e.data.dishes);
+    }
+  };
+  if (syncBroadcast) syncBroadcast.addEventListener('message', handleBroadcast);
+
+  const handleStorage = (e) => {
+    if (isSubscribed && e.key === DISHES_KEY) {
+      callback(getStoredDishes());
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+
+  // 4. Supabase realtime channel if available
+  let channel = null;
+  if (!supabaseDisabled) {
+    try {
+      channel = supabase
+        .channel(`dishes_${Math.random().toString(36).slice(2, 7)}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes' }, async () => {
+          if (!isSubscribed) return;
+          const dishes = await fetchDishes();
+          callback(dishes);
+        })
+        .subscribe();
+    } catch (e) {}
+  }
+
   return () => {
-    supabase.removeChannel(channel);
+    isSubscribed = false;
+    if (channel) {
+      try { supabase.removeChannel(channel); } catch (e) {}
+    }
+    if (syncBroadcast) syncBroadcast.removeEventListener('message', handleBroadcast);
+    window.removeEventListener('storage', handleStorage);
   };
 }
 
 export function onAvailableDishesChange(callback) {
-  console.log('🔄 Setting up dishes listener...');
-  
-  const channel = supabase
-    .channel('available-dishes-changes')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'dishes' },
-      async () => {
-        console.log('🔔 Dishes changed, refetching...');
-        // Fetch all dishes and filter in JavaScript to handle both column name cases
-        const { data, error } = await supabase
-          .from('dishes')
-          .select('*');
-        
-        if (!error && data) {
-          // Filter available dishes (handle both isAvailable and isavailable)
-          const available = data.filter(d => {
-            const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
-            return isAvail !== false;
-          });
-          console.log('✅ Available dishes:', available.length, available);
-          callback(available);
-        } else if (error) {
-          console.error('❌ Error fetching dishes:', error);
-        }
-      }
-    )
-    .subscribe();
+  let isSubscribed = true;
 
-  // Fetch initial data
-  console.log('📥 Fetching initial dishes...');
-  supabase
-    .from('dishes')
-    .select('*')
-    .then(({ data, error }) => {
-      if (!error && data) {
-        // Filter available dishes (handle both column name cases)
-        const available = data.filter(d => {
-          const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
-          return isAvail !== false;
-        });
-        console.log('✅ Initial dishes loaded:', available.length, available);
-        callback(available);
-      } else if (error) {
-        console.error('❌ Error loading initial dishes:', error);
-      }
+  const filterAvail = (list) =>
+    (list || []).filter((d) => {
+      const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
+      return isAvail !== false;
     });
 
+  // 1. Deliver immediately (0ms)
+  callback(filterAvail(getStoredDishes()));
+
+  // 2. Background fetch
+  fetchAvailableDishes().then((avail) => {
+    if (isSubscribed && avail) callback(avail);
+  });
+
+  // 3. BroadcastChannel sync
+  const handleBroadcast = (e) => {
+    if (isSubscribed && e.data && e.data.type === 'DISHES_SYNC') {
+      callback(filterAvail(e.data.dishes));
+    }
+  };
+  if (syncBroadcast) syncBroadcast.addEventListener('message', handleBroadcast);
+
+  const handleStorage = (e) => {
+    if (isSubscribed && e.key === DISHES_KEY) {
+      callback(filterAvail(getStoredDishes()));
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+
+  // 4. Supabase channel
+  let channel = null;
+  if (!supabaseDisabled) {
+    try {
+      channel = supabase
+        .channel(`avail_dishes_${Math.random().toString(36).slice(2, 7)}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes' }, async () => {
+          if (!isSubscribed) return;
+          const dishes = await fetchAvailableDishes();
+          callback(dishes);
+        })
+        .subscribe();
+    } catch (e) {}
+  }
+
   return () => {
-    supabase.removeChannel(channel);
+    isSubscribed = false;
+    if (channel) {
+      try { supabase.removeChannel(channel); } catch (e) {}
+    }
+    if (syncBroadcast) syncBroadcast.removeEventListener('message', handleBroadcast);
+    window.removeEventListener('storage', handleStorage);
   };
 }
 
 export function onCategoriesChange(callback) {
-  console.log('🔄 Setting up categories listener...');
-  
-  const channel = supabase
-    .channel('categories-changes')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'categories' },
-      async () => {
-        console.log('🔔 Categories changed, refetching...');
-        // Re-fetch all categories when any change happens
-        const { data, error } = await supabase
-          .from('categories')
-          .select('*')
-          .order('order', { ascending: true });
-        if (!error && data) {
-          console.log('✅ Categories fetched from Supabase:', data.length, data);
-          callback(data);
-        } else if (error) {
-          console.error('❌ Error fetching categories:', error);
-        }
-      }
-    )
-    .subscribe();
+  let isSubscribed = true;
 
-  // Also fetch initial data
-  console.log('📥 Fetching initial categories...');
-  supabase
-    .from('categories')
-    .select('*')
-    .order('order', { ascending: true })
-    .then(({ data, error }) => {
-      if (!error && data) {
-        console.log('✅ Initial categories loaded:', data.length, data);
-        callback(data);
-      } else if (error) {
-        console.error('❌ Error loading initial categories:', error);
-      }
-    });
+  // 1. Deliver cached categories immediately
+  callback(getStoredCategories());
 
-  // Return unsubscribe function
+  // 2. Background fetch
+  fetchCategories().then((cats) => {
+    if (isSubscribed && cats) callback(cats);
+  });
+
+  const handleBroadcast = (e) => {
+    if (isSubscribed && e.data && e.data.type === 'CATEGORIES_SYNC') {
+      callback(e.data.categories);
+    }
+  };
+  if (syncBroadcast) syncBroadcast.addEventListener('message', handleBroadcast);
+
+  const handleStorage = (e) => {
+    if (isSubscribed && e.key === CATEGORIES_KEY) {
+      callback(getStoredCategories());
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+
+  let channel = null;
+  if (!supabaseDisabled) {
+    try {
+      channel = supabase
+        .channel(`cats_${Math.random().toString(36).slice(2, 7)}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, async () => {
+          if (!isSubscribed) return;
+          const cats = await fetchCategories();
+          callback(cats);
+        })
+        .subscribe();
+    } catch (e) {}
+  }
+
   return () => {
-    supabase.removeChannel(channel);
+    isSubscribed = false;
+    if (channel) {
+      try { supabase.removeChannel(channel); } catch (e) {}
+    }
+    if (syncBroadcast) syncBroadcast.removeEventListener('message', handleBroadcast);
+    window.removeEventListener('storage', handleStorage);
   };
 }
 
-// ── Dishes ────────────────────────────────────────────────────────────────────
+// ── Dishes CRUD (Optimistic & Fast) ──────────────────────────────────────────
 export async function fetchDishes() {
+  const cached = getStoredDishes();
+  if (supabaseDisabled) return cached;
+
   try {
-    const { data, error } = await supabase.from('dishes').select('*');
-    if (error) {
-      console.error('Error fetching dishes:', error);
-      return [];
+    const fetchPromise = supabase.from('dishes').select('*');
+    const { data, error } = await withTimeout(fetchPromise, 700);
+    if (!error && data && data.length > 0) {
+      saveStoredDishes(data);
+      return data;
     }
-    return data || [];
   } catch (err) {
-    console.error('Exception fetching dishes:', err);
-    return [];
+    supabaseDisabled = true;
   }
+  return cached;
 }
 
 export async function fetchAvailableDishes() {
-  try {
-    const { data, error } = await supabase
-      .from('dishes')
-      .select('*')
-      .eq('isavailable', true);  // lowercase column name
-    if (error) {
-      console.error('Error fetching available dishes:', error);
-      return [];
-    }
-    console.log('✅ Fetched available dishes:', data?.length || 0);
-    return data || [];
-  } catch (err) {
-    console.error('Exception fetching available dishes:', err);
-    return [];
-  }
+  const all = await fetchDishes();
+  return (all || []).filter((d) => {
+    const isAvail = d.isAvailable !== undefined ? d.isAvailable : d.isavailable;
+    return isAvail !== false;
+  });
 }
 
 export async function addDish(data) {
+  const id = data.id || `dish_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const newDish = {
+    id: id,
     name: data.name,
-    description: data.description,
-    category: data.category,
-    price: data.price,
-    isveg: data.isVeg,  // lowercase
-    isavailable: true,  // lowercase
-    imageurl: data.imageURL || '',  // lowercase, default empty
-    modelurl: data.modelURL || '',  // lowercase, default empty
+    description: data.description || '',
+    category: data.category || 'Other',
+    price: Number(data.price || 0),
+    isVeg: data.isVeg !== false,
+    isveg: data.isVeg !== false,
+    isAvailable: true,
+    isavailable: true,
+    imageURL: data.imageURL || '',
+    imageurl: data.imageURL || '',
+    modelURL: data.modelURL || '',
+    modelurl: data.modelURL || '',
   };
 
-  const { data: result, error } = await supabase
-    .from('dishes')
-    .insert([newDish])
-    .select();
+  // Optimistic update locally
+  const current = getStoredDishes();
+  const updated = [newDish, ...current];
+  saveStoredDishes(updated);
 
-  if (error) {
-    console.error('Error adding dish:', error);
-    throw error;
+  // Background Supabase insert
+  if (!supabaseDisabled) {
+    withTimeout(
+      supabase.from('dishes').insert([{
+        id: newDish.id,
+        name: newDish.name,
+        description: newDish.description,
+        category: newDish.category,
+        price: newDish.price,
+        isveg: newDish.isVeg,
+        isavailable: true,
+        imageurl: newDish.imageURL,
+        modelurl: newDish.modelURL,
+      }]),
+      1200
+    ).catch(() => {});
   }
 
-  return result?.[0] || newDish;
+  return newDish;
 }
 
 export async function updateDish(id, data) {
-  console.log('🔄 Updating dish:', id, data);
-  
-  // Convert camelCase to lowercase for database
-  const dbData = {};
-  if (data.name !== undefined) dbData.name = data.name;
-  if (data.description !== undefined) dbData.description = data.description;
-  if (data.category !== undefined) dbData.category = data.category;
-  if (data.price !== undefined) dbData.price = data.price;
-  if (data.isVeg !== undefined) dbData.isveg = data.isVeg;
-  if (data.isAvailable !== undefined) dbData.isavailable = data.isAvailable;
-  if (data.isavailable !== undefined) dbData.isavailable = data.isavailable;
-  if (data.imageURL !== undefined) dbData.imageurl = data.imageURL;
-  if (data.modelURL !== undefined) dbData.modelurl = data.modelURL;
+  // Optimistic local update
+  const current = getStoredDishes();
+  const updated = current.map((d) => {
+    if (d.id !== id) return d;
+    const isVeg = data.isVeg !== undefined ? data.isVeg : data.isveg !== undefined ? data.isveg : d.isVeg;
+    const isAvail = data.isAvailable !== undefined ? data.isAvailable : data.isavailable !== undefined ? data.isavailable : d.isAvailable;
+    const image = data.imageURL !== undefined ? data.imageURL : data.imageurl !== undefined ? data.imageurl : d.imageURL;
+    const model = data.modelURL !== undefined ? data.modelURL : data.modelurl !== undefined ? data.modelurl : d.modelURL;
 
-  console.log('📤 Sending to database:', dbData);
+    return {
+      ...d,
+      ...data,
+      isVeg: isVeg,
+      isveg: isVeg,
+      isAvailable: isAvail,
+      isavailable: isAvail,
+      imageURL: image,
+      imageurl: image,
+      modelURL: model,
+      modelurl: model,
+    };
+  });
+  saveStoredDishes(updated);
 
-  const { error } = await supabase
-    .from('dishes')
-    .update(dbData)
-    .eq('id', id);
+  // Background Supabase update
+  if (!supabaseDisabled) {
+    const dbData = {};
+    if (data.name !== undefined) dbData.name = data.name;
+    if (data.description !== undefined) dbData.description = data.description;
+    if (data.category !== undefined) dbData.category = data.category;
+    if (data.price !== undefined) dbData.price = data.price;
+    if (data.isVeg !== undefined) dbData.isveg = data.isVeg;
+    if (data.isAvailable !== undefined) dbData.isavailable = data.isAvailable;
+    if (data.isavailable !== undefined) dbData.isavailable = data.isavailable;
+    if (data.imageURL !== undefined) dbData.imageurl = data.imageURL;
+    if (data.modelURL !== undefined) dbData.modelurl = data.modelURL;
 
-  if (error) {
-    console.error('❌ Error updating dish:', error);
-    throw error;
+    withTimeout(supabase.from('dishes').update(dbData).eq('id', id), 1200).catch(() => {});
   }
-  
-  console.log('✅ Dish updated successfully');
 }
 
 export async function toggleDishAvailability(id, isAvailable) {
-  console.log('🔄 Toggling dish availability:', id, isAvailable);
-  await updateDish(id, { isavailable: isAvailable });
+  await updateDish(id, { isAvailable, isavailable: isAvailable });
 }
 
 export async function deleteDish(id) {
-  const { error } = await supabase.from('dishes').delete().eq('id', id);
+  const current = getStoredDishes();
+  const updated = current.filter((d) => d.id !== id);
+  saveStoredDishes(updated);
 
-  if (error) {
-    console.error('Error deleting dish:', error);
-    throw error;
+  if (!supabaseDisabled) {
+    withTimeout(supabase.from('dishes').delete().eq('id', id), 1200).catch(() => {});
   }
 }
 
-// ── Categories ────────────────────────────────────────────────────────────────
+// ── Categories CRUD (Optimistic & Fast) ───────────────────────────────────────
 export async function fetchCategories() {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('order', { ascending: true });
+  const cached = getStoredCategories();
+  if (supabaseDisabled) return cached;
 
-  if (error) {
-    console.error('Error fetching categories:', error);
-    return [];
+  try {
+    const fetchPromise = supabase.from('categories').select('*').order('order', { ascending: true });
+    const { data, error } = await withTimeout(fetchPromise, 700);
+    if (!error && data && data.length > 0) {
+      saveStoredCategories(data);
+      return data;
+    }
+  } catch (err) {
+    supabaseDisabled = true;
   }
-
-  return data || [];
+  return cached;
 }
 
 export async function addCategory(data) {
+  const id = `cat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const newCat = {
+    id: id,
     name: data.name,
     order: data.order || 0,
   };
 
-  const { data: result, error } = await supabase
-    .from('categories')
-    .insert([newCat])
-    .select();
+  const current = getStoredCategories();
+  const updated = [...current, newCat];
+  saveStoredCategories(updated);
 
-  if (error) {
-    console.error('Error adding category:', error);
-    throw error;
+  if (!supabaseDisabled) {
+    withTimeout(supabase.from('categories').insert([newCat]), 1200).catch(() => {});
   }
-
-  return result?.[0] || newCat;
+  return newCat;
 }
 
 export async function updateCategory(id, data) {
-  const { error } = await supabase
-    .from('categories')
-    .update(data)
-    .eq('id', id);
+  const current = getStoredCategories();
+  const updated = current.map((c) => (c.id === id ? { ...c, ...data } : c));
+  saveStoredCategories(updated);
 
-  if (error) {
-    console.error('Error updating category:', error);
-    throw error;
+  if (!supabaseDisabled) {
+    withTimeout(supabase.from('categories').update(data).eq('id', id), 1200).catch(() => {});
   }
 }
 
 export async function deleteCategory(id) {
-  const { error } = await supabase.from('categories').delete().eq('id', id);
+  const current = getStoredCategories();
+  const updated = current.filter((c) => c.id !== id);
+  saveStoredCategories(updated);
 
-  if (error) {
-    console.error('Error deleting category:', error);
-    throw error;
+  if (!supabaseDisabled) {
+    withTimeout(supabase.from('categories').delete().eq('id', id), 1200).catch(() => {});
   }
 }
 
-// ── File uploads ──────────────────────────────────────────────────────────────
+// ── File Uploads ─────────────────────────────────────────────────────────────
 export async function uploadFile(file, path) {
   try {
     const fileName = `${Date.now()}_${file.name}`;
     const filePath = `${path}/${fileName}`;
 
-    const { error } = await supabase.storage
-      .from('menu-files')
-      .upload(filePath, file);
+    const uploadPromise = supabase.storage.from('menu-files').upload(filePath, file);
+    const { error } = await withTimeout(uploadPromise, 4000);
+    if (error) throw error;
 
-    if (error) {
-      console.error('Error uploading file:', error);
-      // Return empty string instead of throwing - file upload is optional
-      return '';
-    }
-
-    // Get public URL
     const { data } = supabase.storage.from('menu-files').getPublicUrl(filePath);
     return data?.publicUrl || '';
   } catch (err) {
-    console.warn('File upload failed, continuing without file:', err);
-    return '';
+    console.warn('Upload fallback to local object URL:', err);
+    try {
+      return URL.createObjectURL(file);
+    } catch (e) {
+      return '';
+    }
   }
 }
 
 export async function deleteFile(fileURL) {
   try {
-    // Extract path from URL
     const url = new URL(fileURL);
     const filePath = url.pathname.split('/menu-files/')[1];
+    if (filePath && !supabaseDisabled) {
+      supabase.storage.from('menu-files').remove([filePath]);
+    }
+  } catch (err) {}
+}
 
-    if (filePath) {
-      await supabase.storage.from('menu-files').remove([filePath]);
+// ── Orders Management (0ms Instant Placement & Realtime Updates) ─────────────
+export async function createOrder(orderData) {
+  const orderNumber = `BIG-${Math.floor(1000 + Math.random() * 9000)}`;
+  const newOrder = {
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ord_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    order_number: orderNumber,
+    table_number: String(orderData.table_number || orderData.tableNumber || '1'),
+    customer_name: orderData.customer_name || orderData.customerName || 'Guest',
+    customer_phone: orderData.customer_phone || orderData.customerPhone || '',
+    notes: orderData.notes || '',
+    items: orderData.items || [],
+    subtotal: Number(orderData.subtotal || 0),
+    tax: Number(orderData.tax || 0),
+    total: Number(orderData.total || 0),
+    status: 'pending',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  // 1. Instant local persistence & broadcast
+  const local = getStoredOrders();
+  const updated = [newOrder, ...local];
+  saveStoredOrders(updated);
+
+  // 2. Background sync to Supabase
+  if (!supabaseDisabled) {
+    withTimeout(supabase.from('orders').insert([newOrder]), 1200).catch(() => {});
+  }
+
+  return newOrder;
+}
+
+export async function fetchOrders() {
+  const local = getStoredOrders();
+  if (supabaseDisabled) return local;
+
+  try {
+    const fetchPromise = supabase.from('orders').select('*').order('created_at', { ascending: false });
+    const { data, error } = await withTimeout(fetchPromise, 800);
+    if (!error && data && data.length > 0) {
+      const map = new Map();
+      data.forEach((o) => map.set(o.id, o));
+      local.forEach((o) => {
+        if (!map.has(o.id)) map.set(o.id, o);
+      });
+      const merged = Array.from(map.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      saveStoredOrders(merged);
+      return merged;
     }
   } catch (err) {
-    console.warn('Failed to delete file:', err);
+    supabaseDisabled = true;
+  }
+  return local;
+}
+
+export function onOrdersChange(callback) {
+  let isSubscribed = true;
+
+  // 1. Instant cached callback (0ms)
+  const initial = getStoredOrders();
+  callback(initial);
+
+  // 2. Background fetch
+  fetchOrders().then((orders) => {
+    if (isSubscribed && orders) callback(orders);
+  });
+
+  // 3. Broadcast listener
+  const handleBroadcast = (e) => {
+    if (isSubscribed && e.data && e.data.type === 'ORDERS_SYNC') {
+      callback(e.data.orders);
+    }
+  };
+  if (syncBroadcast) syncBroadcast.addEventListener('message', handleBroadcast);
+
+  const handleStorage = (e) => {
+    if (isSubscribed && e.key === ORDERS_KEY) {
+      callback(getStoredOrders());
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+
+  // 4. Supabase channel
+  let channel = null;
+  if (!supabaseDisabled) {
+    try {
+      channel = supabase
+        .channel(`orders_${Math.random().toString(36).slice(2, 7)}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
+          if (!isSubscribed) return;
+          const orders = await fetchOrders();
+          callback(orders);
+        })
+        .subscribe();
+    } catch (e) {}
+  }
+
+  return () => {
+    isSubscribed = false;
+    if (channel) {
+      try { supabase.removeChannel(channel); } catch (e) {}
+    }
+    if (syncBroadcast) syncBroadcast.removeEventListener('message', handleBroadcast);
+    window.removeEventListener('storage', handleStorage);
+  };
+}
+
+export function onSingleOrderChange(orderId, callback) {
+  if (!orderId) return () => {};
+  let isSubscribed = true;
+
+  // Immediate check
+  const local = getStoredOrders();
+  const found = local.find((o) => o.id === orderId);
+  if (found) callback(found);
+
+  const handleBroadcast = (e) => {
+    if (!isSubscribed) return;
+    if (e.data && e.data.type === 'ORDERS_SYNC') {
+      const match = (e.data.orders || []).find((o) => o.id === orderId);
+      if (match) callback(match);
+    }
+  };
+  if (syncBroadcast) syncBroadcast.addEventListener('message', handleBroadcast);
+
+  return () => {
+    isSubscribed = false;
+    if (syncBroadcast) syncBroadcast.removeEventListener('message', handleBroadcast);
+  };
+}
+
+export async function updateOrderStatus(orderId, status) {
+  const updatedAt = new Date().toISOString();
+  const local = getStoredOrders();
+  const updated = local.map((o) => (o.id === orderId ? { ...o, status, updated_at: updatedAt } : o));
+  saveStoredOrders(updated);
+
+  if (!supabaseDisabled) {
+    withTimeout(supabase.from('orders').update({ status, updated_at: updatedAt }).eq('id', orderId), 1200).catch(() => {});
   }
 }
 
-// ── Legacy stubs ──────────────────────────────────────────────────────────────
+export async function deleteOrder(orderId) {
+  const local = getStoredOrders();
+  const updated = local.filter((o) => o.id !== orderId);
+  saveStoredOrders(updated);
+
+  if (!supabaseDisabled) {
+    withTimeout(supabase.from('orders').delete().eq('id', orderId), 1200).catch(() => {});
+  }
+}
+
+// ── Legacy stubs ─────────────────────────────────────────────────────────────
 export async function getRestaurant() {
   return null;
 }

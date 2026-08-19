@@ -1,30 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { fetchCategories, addCategory, updateCategory, deleteCategory, fetchDishes } from '../../utils/firestore';
+import { fetchCategories, addCategory, updateCategory, deleteCategory, fetchDishes, getStoredCategories, getStoredDishes, onCategoriesChange } from '../../utils/firestore';
 import toast from 'react-hot-toast';
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState([]);
-  const [dishes, setDishes] = useState([]);
-  const [newCat, setNewCat] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [savingNew, setSavingNew] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [editName, setEditName] = useState('');
+  // Synchronous 0ms initialization
+  const [categories, setCategories] = useState(() => getStoredCategories());
+  const [dishes, setDishes]         = useState(() => getStoredDishes());
+  const [newCat, setNewCat]         = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [savingNew, setSavingNew]   = useState(false);
+  const [editId, setEditId]         = useState(null);
+  const [editName, setEditName]     = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  const load = async () => {
-    setLoading(true);
-    const [cats, d] = await Promise.all([
-      fetchCategories(),
-      fetchDishes()
-    ]);
-    setCategories(cats);
-    setDishes(d);
-    setLoading(false);
-  };
+  useEffect(() => {
+    fetchDishes().then(d => {
+      if (d) setDishes(d);
+    });
 
-  useEffect(() => { load(); }, []);
+    const unsubscribe = onCategoriesChange((cats) => {
+      if (cats) setCategories(cats);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const getDishCount = (catName) => dishes.filter((d) => d.category === catName).length;
 
@@ -33,10 +34,10 @@ export default function CategoriesPage() {
     if (!newCat.trim()) return;
     setSavingNew(true);
     try {
-      await addCategory({ name: newCat.trim(), order: categories.length });
+      const added = await addCategory({ name: newCat.trim(), order: categories.length });
+      setCategories(prev => [...prev, added]);
       toast.success('Category added');
       setNewCat('');
-      load();
     } catch {
       toast.error('Error adding category');
     } finally {
@@ -46,11 +47,11 @@ export default function CategoriesPage() {
 
   const handleEditSave = async (id) => {
     if (!editName.trim()) return;
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, name: editName.trim() } : c));
+    toast.success('Category updated');
+    setEditId(null);
     try {
       await updateCategory(id, { name: editName.trim() });
-      toast.success('Category updated');
-      setEditId(null);
-      load();
     } catch {
       toast.error('Error updating');
     }
